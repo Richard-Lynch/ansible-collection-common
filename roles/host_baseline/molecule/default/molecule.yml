@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Parse/check tier. This role rewrites sshd's effective config on
+# a remote host, so the scenario deliberately NEVER converges it: baseline_apply stays false, and no
+# task here reloads sshd, installs a package, or writes into /etc.
+#
+# That is not a cop-out — it is where the risk actually lives. The role's dangerous surface is not
+# "does apt install a package", it is the VERIFICATION GATE that decides whether the config it just
+# installed is the config that is now in force. `sshd -T` reports `prohibit-password` back as
+# `without-password`, so a literal string comparison fails against a config that applied
+# perfectly. The same class of bug in the other direction would pass a host that was still
+# accepting passwords.
+#
+# So the scenario renders the role's own template and exercises the role's own synonym mapping
+# against real `sshd -T` spellings — no live sshd required, and no way for a regression in either to
+# stay green.
+---
+dependency:
+  name: galaxy
+driver:
+  name: default
+platforms:
+  - name: localhost
+provisioner:
+  name: ansible
+  env:
+    ANSIBLE_ROLES_PATH: "${MOLECULE_PROJECT_DIRECTORY}/../"
+    # Dependencies (galaxy.yml) are installed into collections.galaxy/ at the repo root; the
+    # second entry resolves this collection itself when the checkout sits at
+    # ansible_collections/richard_lynch/common. molecule does not read a repo ansible.cfg.
+    ANSIBLE_COLLECTIONS_PATH: "${MOLECULE_PROJECT_DIRECTORY}/../../collections.galaxy:${MOLECULE_PROJECT_DIRECTORY}/../../../../.."
+  inventory:
+    host_vars:
+      localhost:
+        ansible_connection: local
+  playbooks:
+    converge: converge.yml
+    verify: verify.yml
+verifier:
+  name: ansible

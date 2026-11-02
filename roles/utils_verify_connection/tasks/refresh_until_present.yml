@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+# One refresh attempt, driven by the loop in main.yml.
+#
+# Split into its own file because `meta: refresh_inventory` cannot be retried in place — it ignores
+# until:/retries:/delay: entirely. Looping an include_tasks around it is the supported way to refresh
+# repeatedly while a guest's address appears.
+- name: Pause before re-checking the inventory
+  ansible.builtin.pause:
+    seconds: "{{ utils_verify_connection_refresh_delay | int }}"
+  when: _uvc_attempt | int > 0
+
+- name: Refresh the dynamic inventory
+  delegate_to: localhost
+  ansible.builtin.meta: refresh_inventory

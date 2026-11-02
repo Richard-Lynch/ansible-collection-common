@@ -1,0 +1,93 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Exercise the role's safety guards WITHOUT contacting 1Password. Molecule runs converge and verify as
+# separate ansible-playbook processes, so facts don't persist between them — we therefore assert INSIDE
+# converge (fail here if a guard doesn't fire). verify.yml is a trivial placeholder.
+#
+# The vault and its allow-list come from the scenario INVENTORY (molecule.yml), exactly as they come
+# from group_vars in a real estate — the role has no default for either.
+#
+# Each rescue asserts WHICH guard fired. A bare rescue would count any failure as success — a
+# missing required variable, a typo in the role — so a guard that had stopped working would still
+# read green as long as something else failed first.
+---
+- name: Converge — assert validation + scope guards fire
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Out-of-scope vault must be refused
+      block:
+        - name: Attempt get against a vault outside secrets_manager_allowed_vaults
+          ansible.builtin.include_role:
+            name: secrets_manager
+          vars:
+            secrets_manager_action: get
+            secrets_manager_title: "service/test/x"
+            secrets_manager_vault: "SomeOtherVault"
+        - name: Guard did NOT fire — fail the test
+          ansible.builtin.fail:
+            msg: "secrets_manager accepted an out-of-scope vault (should have refused)."
+      rescue:
+        - name: It was the SCOPE guard that fired
+          ansible.builtin.assert:
+            that:
+              - "'refuses vault' in (ansible_failed_result.msg | default(''))"
+            fail_msg: "Failed, but not on the scope guard: {{ ansible_failed_result.msg | default(ansible_failed_result) }}"
+            quiet: true
+
+    - name: An empty allow-list must refuse even the configured vault
+      block:
+        - name: Attempt get with secrets_manager_allowed_vaults empty
+          ansible.builtin.include_role:
+            name: secrets_manager
+          vars:
+            secrets_manager_action: get
+            secrets_manager_title: "service/test/x"
+            secrets_manager_allowed_vaults: []
+        - name: Guard did NOT fire — fail the test
+          ansible.builtin.fail:
+            msg: "secrets_manager accepted a vault with an EMPTY allow-list (should have refused)."
+      rescue:
+        - name: It was the SCOPE guard that fired
+          ansible.builtin.assert:
+            that:
+              - "'refuses vault' in (ansible_failed_result.msg | default(''))"
+            fail_msg: "Failed, but not on the scope guard: {{ ansible_failed_result.msg | default(ansible_failed_result) }}"
+            quiet: true
+
+    - name: Invalid action must be refused
+      block:
+        - name: Attempt an unknown action
+          ansible.builtin.include_role:
+            name: secrets_manager
+          vars:
+            secrets_manager_action: frobnicate
+            secrets_manager_title: "service/test/x"
+        - name: Guard did NOT fire — fail the test
+          ansible.builtin.fail:
+            msg: "secrets_manager accepted an invalid action (should have refused)."
+      rescue:
+        - name: It was the argspec's choices check that fired
+          ansible.builtin.assert:
+            that:
+              - "'secrets_manager_action' in (ansible_failed_result.msg | default(''))"
+            fail_msg: "Failed, but not on the action check: {{ ansible_failed_result.msg | default(ansible_failed_result) }}"
+            quiet: true
+
+    - name: Title required for non-list actions
+      block:
+        - name: Attempt a get with no title
+          ansible.builtin.include_role:
+            name: secrets_manager
+          vars:
+            secrets_manager_action: get
+            secrets_manager_title: ""
+        - name: Guard did NOT fire — fail the test
+          ansible.builtin.fail:
+            msg: "secrets_manager accepted an empty title for get (should have refused)."
+      rescue:
+        - name: It was the title guard that fired
+          ansible.builtin.assert:
+            that:
+              - "'title required' in (ansible_failed_result.msg | default(''))"
+            fail_msg: "Failed, but not on the title guard: {{ ansible_failed_result.msg | default(ansible_failed_result) }}"
+            quiet: true

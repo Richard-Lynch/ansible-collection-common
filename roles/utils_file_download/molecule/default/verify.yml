@@ -1,0 +1,63 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+- name: Verify
+  hosts: localhost
+  gather_facts: false
+  vars:
+    _tmp: /tmp/molecule-utils-file-download
+    _src: "{{ playbook_dir }}/fixture/payload.txt"
+
+  tasks:
+    - name: Stat the download
+      ansible.builtin.stat:
+        path: "{{ _tmp }}/payload.txt"
+      register: _dl
+
+    - name: The first download carried the fixture's bytes, at the requested mode
+      ansible.builtin.assert:
+        that:
+          - lookup('file', _tmp ~ '/as-downloaded.txt') == lookup('file', _src)
+          - _dl.stat.mode == '0600'
+        fail_msg: "mode={{ _dl.stat.mode }}"
+        quiet: true
+
+    - name: Inside the TTL the second call did NOT re-download (the local copy survived)
+      ansible.builtin.assert:
+        that:
+          - lookup('file', _tmp ~ '/payload.txt') == 'LOCAL COPY'
+        fail_msg: >-
+          The role re-downloaded a file that was inside its TTL:
+          {{ lookup('file', _tmp ~ '/payload.txt') }}
+        quiet: true
+
+    - name: A checksum mismatch must FAIL, and leave no file behind
+      block:
+        - name: Download against a wrong checksum
+          ansible.builtin.include_role:
+            name: utils_file_download
+          vars:
+            file_download_url: "file://{{ _src }}"
+            file_download_path: "{{ _tmp }}/bad.txt"
+            file_download_checksum: "sha256:{{ '0' * 64 }}"
+
+        - name: The download was accepted — fail the test
+          ansible.builtin.fail:
+            msg: "utils_file_download accepted a file whose checksum did not match."
+      rescue:
+        - name: It was the checksum that failed it
+          ansible.builtin.assert:
+            that:
+              - "'checksum' in (ansible_failed_result.msg | default('') | lower)"
+            fail_msg: "Failed, but not on the checksum: {{ ansible_failed_result.msg | default(ansible_failed_result) }}"
+            quiet: true
+
+    - name: Read back the rejected download
+      ansible.builtin.stat:
+        path: "{{ _tmp }}/bad.txt"
+      register: _bad
+
+    - name: The mismatched file was not left in place
+      ansible.builtin.assert:
+        that:
+          - not _bad.stat.exists
+        quiet: true

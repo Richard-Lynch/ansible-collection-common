@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+# AUTO-GENERATED argument spec — DO NOT EDIT.
+#
+# Source of truth: roles/deployment_config/meta/argument_specs.py
+# Regenerate:      venv/bin/python tools/argspec/cli.py x generate deployment_config
+#
+# Edits here are silently overwritten on the next generation. To change a value or its
+# documentation, change the OptionSpec in the source file above — descriptions there
+# are emitted as the comments in this file.
+argument_specs:
+  main:
+    short_description: Adds configuration to the `/opt/<service_name>`
+    version_added: '1.0'
+    author: Collection maintainers
+    options:
+      deployment_config_source:
+        description:
+          - The directory on the control node (localhost) to use as the source for the deployed config.
+        type: str
+        required: true
+      deployment_config_destination:
+        description:
+          - The destination directory for the files to be placed
+        type: str
+        required: true
+      deployment_config_file_owner:
+        description:
+          - Owner of every deployed file. Unset means root.
+        type: str
+        required: false
+      deployment_config_file_group:
+        description:
+          - Group of every deployed file. Unset means root.
+        type: str
+        required: false
+      deployment_config_file_mode:
+        description:
+          - Mode of every deployed file. Unset means 'preserve' (the source file's mode).
+          - Set it explicitly (e.g. '0600') when the config carries credentials.
+        type: str
+        required: false
+  cleanup:
+    short_description: Removes all configuration to from
+    version_added: '1.0'
+    author: Collection maintainers
+    options:
+      deployment_config_location:
+        description:
+          - The location of the files to be cleaned up
+        type: str
+        required: true

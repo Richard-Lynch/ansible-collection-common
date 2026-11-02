@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Template-render tier. The role installs Docker and restarts
+# dockerd, so the scenario never converges it: it renders the role's OWN templates and
+# evaluates the role's OWN package-pin expression from defaults/main.yml, into a temp dir.
+---
+dependency:
+  name: galaxy
+driver:
+  name: default
+platforms:
+  - name: localhost
+provisioner:
+  name: ansible
+  env:
+    ANSIBLE_ROLES_PATH: "${MOLECULE_PROJECT_DIRECTORY}/../"
+    # Dependencies (galaxy.yml) are installed into collections.galaxy/ at the repo root; the
+    # second entry resolves this collection itself when the checkout sits at
+    # ansible_collections/richard_lynch/common. molecule does not read a repo ansible.cfg.
+    ANSIBLE_COLLECTIONS_PATH: "${MOLECULE_PROJECT_DIRECTORY}/../../collections.galaxy:${MOLECULE_PROJECT_DIRECTORY}/../../../../.."
+  inventory:
+    host_vars:
+      localhost:
+        ansible_connection: local
+  playbooks:
+    cleanup: cleanup.yml
+    converge: converge.yml
+    verify: verify.yml
+verifier:
+  name: ansible

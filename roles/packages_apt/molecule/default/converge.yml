@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# The role with nothing to do (update skipped, empty list) must run cleanly — argspec validation and
+# the default resolution both run for real. Installing packages is not exercised: see molecule.yml.
+---
+- name: Converge — packages_apt with an empty package list
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Run the role with update skipped and no packages
+      ansible.builtin.include_role:
+        name: packages_apt
+      vars:
+        packages_apt_skip_update: true
+        packages_apt_packages: []

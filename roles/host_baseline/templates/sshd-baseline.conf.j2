@@ -1,0 +1,12 @@
+{# SPDX-License-Identifier: GPL-3.0-or-later #}
+# Managed by the host_baseline role — DO NOT EDIT.
+#
+# A DROP-IN, not an edit of sshd_config: the distribution's file stays pristine, and reverting this
+# is one `rm` plus a reload rather than a merge.
+#
+# Ordering matters in sshd: for most keywords the FIRST value wins, so a drop-in must be included
+# early enough to take effect. Debian/Ubuntu ship `Include /etc/ssh/sshd_config.d/*.conf` as the
+# first line of sshd_config for exactly this reason — the role's read-back gate proves it worked
+# rather than assuming it.
+PasswordAuthentication {{ 'yes' if baseline_ssh_password_auth | bool else 'no' }}
+PermitRootLogin {{ baseline_ssh_permit_root_login }}

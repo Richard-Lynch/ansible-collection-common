@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+- name: Get the information for the file at "{{ file_download_path }}"
+  register: file_stat
+  ansible.builtin.stat:
+    path: "{{ file_download_path }}"
+
+- name: Calculate days since file was downloaded
+  ansible.builtin.set_fact:
+    # https://docs.ansible.com/ansible/latest/collections/ansible/builtin/to_datetime_filter.html#ansible-collections-ansible-builtin-to-datetime-filter
+    # https://docs.ansible.com/ansible/latest/collections/ansible/builtin/strftime_filter.html#ansible-collections-ansible-builtin-strftime-filter
+    file_days_since_download: "{{ (now() - ('%Y-%m-%d %H:%M:%S' | strftime(second=file_stat.stat.ctime) | to_datetime)).days }}"
+  when: file_stat.stat.exists
+
+- name: Download file image
+  # CHECKSUM VERIFICATION, when the caller supplies one. get_url computes the digest after the
+  # transfer and DELETES the file on mismatch, so a truncated or tampered download cannot be
+  # mistaken for a good one — which matters most for the things this role is used for (OS
+  # images, firmware) where corruption is silent until something fails to boot.
+  #
+  # Accepts either a literal "sha256:<hex>" or "sha256:<url>" pointing at a checksum file.
+  # `omit` when unset: an empty string is not the same as absent, and get_url treats "" as a
+  # malformed checksum rather than as "do not check".
+  ansible.builtin.get_url:
+    url: "{{ file_download_url }}"
+    dest: "{{ file_download_path }}"
+    mode: "{{ file_download_mode | default(file_download_mode__default) }}"
+    timeout: "{{ file_download_timeout | default(file_download_timeout__default) }}"
+    checksum: "{{ file_download_checksum | default(file_download_checksum__default) | default(omit, true) }}"
+    force: true
+  when: (file_days_since_download | default(1000000) | int) >= (file_download_ttl_days | default(file_download_ttl_days__default)) | default(true)

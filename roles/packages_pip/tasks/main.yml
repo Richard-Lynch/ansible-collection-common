@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+- name: Resolve declared options over their generated defaults
+  # GENERATED from meta/argument_specs.py — binds every declared option to its default, so a
+  # default can never be declared-but-dead (the variable evaluating Undefined at run time).
+  ansible.builtin.include_tasks: _resolve_defaults.yml
+
+- name: Setup
+  ansible.builtin.include_tasks: setup.yml
+  when: not (packages_pip_skip_setup | default(packages_pip_skip_setup__default))
+
+- name: Install/Remove PIP packages
+  ansible.builtin.pip:
+    name: "{{ package.name }}"
+    state: "{{ package.state }}"
+    version: "{{ package.version | default(omit) }}"
+    virtualenv: "{{ packages_pip_virtualenv | default(omit) }}"
+    virtualenv_command: "{{ packages_pip_virtualenv_command | default(omit) }}"
+  loop: "{{ packages_pip_packages }}"
+  loop_control:
+    loop_var: package

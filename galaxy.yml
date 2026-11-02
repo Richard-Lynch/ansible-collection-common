@@ -1,0 +1,43 @@
+# Copyright: (c) 2026, Richard Lynch
+# GNU General Public License v3.0+ (see https://www.gnu.org/licenses/gpl-3.0.txt)
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+namespace: richard_lynch
+name: common
+version: 1.0.0
+readme: README.md
+authors:
+  - Richard Lynch
+description: >-
+  Generic building blocks for Ansible estates: a module_utils base for HTTP-API modules
+  (transport, connection argspec, typed errors, secret redaction, a check/diff/read-back adapter),
+  a caching 1Password lookup, a roaming-host selector, and roles for config deployment, 1Password
+  credential lifecycle, Docker, systemd-networkd, packages and a host baseline.
+license:
+  - GPL-3.0-or-later
+tags:
+  - tools
+  - infrastructure
+  - linux
+  - docker
+  - api
+dependencies:
+  community.general: ">=9.0.0"
+repository: https://github.com/Richard-Lynch/ansible-collection-common
+documentation: https://github.com/Richard-Lynch/ansible-collection-common/blob/main/README.md
+homepage: https://github.com/Richard-Lynch/ansible-collection-common
+issues: https://github.com/Richard-Lynch/ansible-collection-common/issues
+build_ignore:
+  - .ansible-lint
+  - .github
+  - .gitignore
+  - collections.galaxy
+  - configured_roles.txt
+  - devkit.toml
+  - dist
+  - export.manifest
+  - tests/output
+  - roles/*/meta/argument_specs.py
+  - roles/*/defaults/SKIP
+  - roles/*/molecule
+  - "*.tar.gz"

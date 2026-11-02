@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+# Entrypoint: only the PEP 668 marker removal (tasks_from: pep668).
+- name: Resolve declared options over their generated defaults
+  ansible.builtin.include_tasks: _resolve_defaults.yml
+
+- name: Remove the PEP 668 marker of every system Python
+  ansible.builtin.include_tasks: _pep668.yml

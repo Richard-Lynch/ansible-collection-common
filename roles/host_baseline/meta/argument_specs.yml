@@ -1,0 +1,59 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+# AUTO-GENERATED argument spec — DO NOT EDIT.
+#
+# Source of truth: roles/host_baseline/meta/argument_specs.py
+# Regenerate:      venv/bin/python tools/argspec/cli.py x generate host_baseline
+#
+# Edits here are silently overwritten on the next generation. To change a value or its
+# documentation, change the OptionSpec in the source file above — descriptions there
+# are emitted as the comments in this file.
+argument_specs:
+  main:
+    short_description: "Own a host's baseline OS state: sshd, updates, boot behaviour"
+    version_added: '1.0'
+    author: Collection maintainers
+    options:
+      baseline_ssh_password_auth:
+        description:
+          - Whether sshd accepts password authentication.
+          - 'FALSE on any host with a public IP: a password-accepting sshd is a'
+          - brute-force target, and it only takes one later `useradd` with a weak
+          - password to turn a theoretical exposure into a real one.
+        type: bool
+        required: false
+        default: false
+      baseline_ssh_permit_root_login:
+        description:
+          - PermitRootLogin. 'prohibit-password' keeps key-based root access — which
+          - automation that connects as root depends on — while refusing passwords.
+          - "'no' locks out anything that connects as root."
+        type: str
+        required: false
+        default: prohibit-password
+        choices:
+          - yes
+          - no
+          - prohibit-password
+          - forced-commands-only
+      baseline_unattended_upgrades:
+        description:
+          - Whether unattended-upgrades is installed and enabled.
+        type: bool
+        required: false
+        default: true
+      baseline_unattended_auto_reboot:
+        description:
+          - Whether unattended-upgrades may REBOOT on its own.
+          - 'FALSE: an unplanned reboot on a host carrying a public service is an'
+          - outage nobody scheduled, and an untested boot path is discovered at the
+          - worst moment. Reboots stay deliberate.
+        type: bool
+        required: false
+        default: false
+      baseline_apply:
+        description:
+          - Generate-don't-apply. False reports the diff and changes nothing.
+        type: bool
+        required: false
+        default: false

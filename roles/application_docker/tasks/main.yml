@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+- name: Install Docker (version-pinned per distro)
+  ansible.builtin.import_role:
+    name: geerlingguy.docker
+  vars:
+    docker_packages: "{{ application_docker_packages }}"
+
+- name: Bound container log growth
+  # WHY THIS EXISTS: see the note in defaults/main.yml. Without max-size/max-file the json-file
+  # driver grows one file per container forever.
+  #
+  # Written BEFORE the systemd unit task so both changes land in one restart rather than two.
+  ansible.builtin.template:
+    src: "{{ role_path }}/templates/daemon.json.j2"
+    dest: /etc/docker/daemon.json
+    mode: "0644"
+    # Refuse to ship a daemon.json Docker cannot parse: an invalid file stops dockerd from
+    # starting AT ALL, which means every container on the host goes down.
+    validate: "python3 -c \"import json,sys; json.load(open(sys.argv[1]))\" %s"
+  notify: Restart systemd docker
+
+# A DROP-IN, not a replacement unit.
+#
+# A file at /etc/systemd/system/docker.service is a COMPLETE REPLACEMENT for the packaged unit, so
+# everything the package defines and that file does not is silently discarded: ExecReload,
+# Restart=always, RestartSec, LimitNOFILE/LimitNPROC/LimitCORE, TasksMax, OOMScoreAdjust, Delegate,
+# KillMode and the BindsTo/After ordering against containerd.service and docker.socket. Without
+# ExecReload, `systemctl reload docker` fails and a daemon.json change needs a full restart.
+# Earlier versions of this role wrote such a file; the task below removes it.
+#
+# /etc/systemd/system/docker.service.d/*.conf MERGES with the packaged unit instead, so only the
+# lines here are overridden. The `ExecStart=` empty-assignment idiom still works: it clears the
+# inherited value before setting the new one, which is exactly what a drop-in is for.
+- name: Remove the old full-replacement unit, if present
+  ansible.builtin.file:
+    path: /etc/systemd/system/docker.service
+    state: absent
+  notify: Restart systemd docker
+
+- name: Ensure the docker drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/system/docker.service.d
+    state: directory
+    mode: "0755"
+
+- name: Configure the systemd drop-in for docker
+  ansible.builtin.template:
+    src: "{{ role_path }}/templates/docker.service.j2"
+    dest: /etc/systemd/system/docker.service.d/10-ansible.conf
+    mode: "0644"
+  notify: Restart systemd docker

@@ -1,0 +1,82 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Render the role's two templates and evaluate its per-distro package pin, all from the ROLE'S own
+# files: defaults/main.yml is loaded as play vars_files, the templates are rendered from templates/.
+#
+# Overrides are TASK vars, which outrank play vars_files. (Loading the defaults with include_vars
+# instead would silently invert that: include_vars outranks task vars, so `application_docker_pin:
+# false` on a task would be ignored and the "unpinned" case would test the pinned one.)
+---
+- name: Converge — render application_docker's artefacts
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - ../../defaults/main.yml
+  vars:
+    _tmp: /tmp/molecule-application-docker
+
+  tasks:
+    - name: Make the render dir
+      ansible.builtin.file:
+        path: "{{ _tmp }}"
+        state: directory
+        mode: "0755"
+
+    - name: Render daemon.json with the shipped defaults
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../../templates/daemon.json.j2"
+        dest: "{{ _tmp }}/daemon.default.json"
+        mode: "0644"
+
+    - name: Render daemon.json with a caller's extra daemon config
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../../templates/daemon.json.j2"
+        dest: "{{ _tmp }}/daemon.extended.json"
+        mode: "0644"
+      vars:
+        application_docker_daemon_config: { "live-restore": true }
+
+    - name: Render the systemd drop-in with the shipped defaults
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../../templates/docker.service.j2"
+        dest: "{{ _tmp }}/dropin.default.conf"
+        mode: "0644"
+
+    - name: Render the systemd drop-in with the TCP socket deliberately enabled
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../../templates/docker.service.j2"
+        dest: "{{ _tmp }}/dropin.tcp.conf"
+        mode: "0644"
+      vars:
+        docker_expose_tcp: true
+
+    - name: Evaluate the role's package list on Debian, Ubuntu, and with the pin off
+      ansible.builtin.set_fact:
+        _pkgs_debian: "{{ application_docker_packages }}"
+      vars:
+        ansible_distribution: Debian
+
+    - name: Evaluate on Ubuntu
+      ansible.builtin.set_fact:
+        _pkgs_ubuntu: "{{ application_docker_packages }}"
+      vars:
+        ansible_distribution: Ubuntu
+
+    - name: Evaluate with the pin off
+      ansible.builtin.set_fact:
+        _pkgs_unpinned: "{{ application_docker_packages }}"
+      vars:
+        ansible_distribution: Debian
+        application_docker_pin: false
+
+    - name: Hand the results to verify.yml (set_fact does not cross the playbook boundary)
+      ansible.builtin.copy:
+        dest: "{{ _tmp }}/results.json"
+        mode: "0644"
+        content: |
+          {{ {
+               'pkgs_debian': _pkgs_debian,
+               'pkgs_ubuntu': _pkgs_ubuntu,
+               'pkgs_unpinned': _pkgs_unpinned,
+               'version_debian': application_docker_version_debian,
+               'version_ubuntu': application_docker_version_ubuntu,
+             } | to_nice_json }}

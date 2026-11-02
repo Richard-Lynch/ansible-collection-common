@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# The role's argspec is its only guard on the package list, so prove it rejects the two malformed
+# entries a caller is most likely to write — BEFORE apt is ever invoked.
+---
+- name: Verify
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: An unknown state must be rejected by the argspec
+      block:
+        - name: Pass state=installed (apt's word is present)
+          ansible.builtin.include_role:
+            name: packages_apt
+          vars:
+            packages_apt_skip_update: true
+            packages_apt_packages:
+              - { name: example-package, state: installed }
+
+        - name: The argspec accepted it — fail the test
+          ansible.builtin.fail:
+            msg: "packages_apt accepted state=installed."
+      rescue:
+        - name: It was the argspec's choices check on `state`
+          ansible.builtin.assert:
+            that:
+              - "'state' in (ansible_failed_result.msg | default(''))"
+              - "'installed' in (ansible_failed_result.msg | default(''))"
+            fail_msg: "Failed, but not on the state check: {{ ansible_failed_result.msg | default(ansible_failed_result) }}"
+            quiet: true
+
+    - name: An entry with no name must be rejected by the argspec
+      block:
+        - name: Pass an entry without a name
+          ansible.builtin.include_role:
+            name: packages_apt
+          vars:
+            packages_apt_skip_update: true
+            packages_apt_packages:
+              - { state: present }
+
+        - name: The argspec accepted it — fail the test
+          ansible.builtin.fail:
+            msg: "packages_apt accepted a package entry with no name."
+      rescue:
+        - name: It was the argspec's required check on `name`
+          ansible.builtin.assert:
+            that:
+              - "'name' in (ansible_failed_result.msg | default(''))"
+              - "'required' in (ansible_failed_result.msg | default('') | lower)"
+            fail_msg: "Failed, but not on the name check: {{ ansible_failed_result.msg | default(ansible_failed_result) }}"
+            quiet: true

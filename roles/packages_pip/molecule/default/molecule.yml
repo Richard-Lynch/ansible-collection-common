@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Converge tier, offline: installs into a scratch virtualenv (pip itself, already present, so no
+# index is contacted) and asserts the argspec rejects a malformed package entry.
+---
+dependency:
+  name: galaxy
+driver:
+  name: default
+platforms:
+  - name: localhost
+provisioner:
+  name: ansible
+  env:
+    ANSIBLE_ROLES_PATH: "${MOLECULE_PROJECT_DIRECTORY}/../"
+    # Dependencies (galaxy.yml) are installed into collections.galaxy/ at the repo root; the
+    # second entry resolves this collection itself when the checkout sits at
+    # ansible_collections/richard_lynch/common. molecule does not read a repo ansible.cfg.
+    ANSIBLE_COLLECTIONS_PATH: "${MOLECULE_PROJECT_DIRECTORY}/../../collections.galaxy:${MOLECULE_PROJECT_DIRECTORY}/../../../../.."
+  inventory:
+    host_vars:
+      localhost:
+        ansible_connection: local
+        # The pip module imports `packaging` on the target. The interpreter running ansible has it
+        # by construction; interpreter DISCOVERY may pick a system python that does not.
+        ansible_python_interpreter: "{{ ansible_playbook_python }}"
+  playbooks:
+    cleanup: cleanup.yml
+    converge: converge.yml
+    verify: verify.yml
+verifier:
+  name: ansible

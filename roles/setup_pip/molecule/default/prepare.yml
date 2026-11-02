@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# A fake stdlib root: two Pythons carrying the PEP 668 marker, plus two files the role must NOT
+# touch — an unrelated stdlib file, and a same-named file one level deeper than a marker lives.
+# Built in prepare (runs once) so the idempotence re-run of converge finds nothing left to remove.
+---
+- name: Prepare
+  hosts: localhost
+  gather_facts: false
+  vars:
+    _root: /tmp/molecule-setup-pip/lib
+  tasks:
+    - name: Start from nothing
+      ansible.builtin.file:
+        path: /tmp/molecule-setup-pip
+        state: absent
+
+    - name: Make the fake stdlib dirs
+      ansible.builtin.file:
+        path: "{{ _root }}/{{ item }}"
+        state: directory
+        mode: "0755"
+      loop: [python3.11, python3.12/nested]
+
+    - name: Plant the markers and the decoys
+      ansible.builtin.copy:
+        dest: "{{ _root }}/{{ item }}"
+        content: "{{ item }}\n"
+        mode: "0644"
+      loop:
+        - python3.11/EXTERNALLY-MANAGED
+        - python3.12/EXTERNALLY-MANAGED
+        - python3.12/os.py
+        - python3.12/nested/EXTERNALLY-MANAGED

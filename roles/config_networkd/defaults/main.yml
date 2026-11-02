@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+networkd_config_interface: eth0
+
+# STATIC addressing (optional). Leave empty for DHCP (the default for ordinary guests).
+# Set these for hosts that must NOT depend on DHCP — above all the DNS/DHCP server itself, which
+# cannot get its address from the service it provides (a guest running a DHCP server must be
+# static, or it depends on the very server it replaces). Example (RFC 5737 documentation range):
+#   networkd_config_address: "192.0.2.3/24"
+#   networkd_config_gateway: "192.0.2.1"
+networkd_config_address: ""
+networkd_config_gateway: ""
+# Optional explicit resolvers for a static host (list). Empty => none written.
+networkd_config_dns: []
+# ADDITIONAL addresses this host should hold, beyond networkd_config_address (list of CIDRs).
+#
+# This role owns /etc/systemd/network/10-<iface>.network outright — it re-renders the whole file on
+# every run. So any address added out-of-band (a lineinfile from another play, an `ip addr add` that
+# someone persisted by hand) is SILENTLY DESTROYED the next time the role runs, and the host loses
+# it at the next reboot. Declare such addresses here instead.
+#
+# Concretely: a DNS/DHCP server that holds BOTH a management address and a separate service address
+# (one that moves between servers at a cutover) declares the service address here, in its
+# host_vars, so the role renders both, e.g.
+#   networkd_config_extra_addresses: ["192.0.2.2/24"]
+networkd_config_extra_addresses: []

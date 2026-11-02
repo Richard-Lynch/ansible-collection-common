@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+- name: Update
+  ansible.builtin.include_tasks: update.yml
+  when: not (packages_apt_skip_update | default(packages_apt_skip_update__default))
+
+- name: Install/Remove apt packages
+  ansible.builtin.apt:
+    name: "{{ package.name }}"
+    # The argspec declares install_recommends' default (false) but Ansible never injects a nested
+    # option's default into the variable, so it is applied here. The previous fallback read
+    # `.install_recommends` off packages_apt_packages__default — a LIST — which is undefined, so
+    # any entry that omitted the key failed the task.
+    install_recommends: "{{ package.install_recommends | default(false) }}"
+    state: "{{ package.state }}"
+  loop: "{{ packages_apt_packages | default(packages_apt_packages__default) }}"
+  loop_control:
+    loop_var: package

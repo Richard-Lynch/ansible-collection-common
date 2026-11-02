@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+# PEP 668: a distro marks its system Python "externally managed" with
+# <stdlib>/EXTERNALLY-MANAGED, and system pip then refuses to install. This role's purpose is to let
+# system pip install, so the marker goes.
+# https://www.jeffgeerling.com/blog/2023/how-solve-error-externally-managed-environment-when-installing-pip3
+#
+# FOUND, not named: a literal path such as /usr/lib/python3.11/EXTERNALLY-MANAGED silently does
+# nothing on a host whose Python is another version, and reports "ok" while pip goes on refusing.
+# depth 2 = <root>/<python3.X>/EXTERNALLY-MANAGED only.
+- name: Find the PEP 668 marker of every system Python under {{ setup_pip_stdlib_root }}
+  ansible.builtin.find:
+    paths: "{{ setup_pip_stdlib_root }}"
+    patterns: EXTERNALLY-MANAGED
+    file_type: file
+    recurse: true
+    depth: 2
+  register: _setup_pip_markers
+
+- name: Remove each marker
+  ansible.builtin.file:
+    path: "{{ _marker.path }}"
+    state: absent
+  loop: "{{ _setup_pip_markers.files }}"
+  loop_control:
+    loop_var: _marker
+    label: "{{ _marker.path }}"

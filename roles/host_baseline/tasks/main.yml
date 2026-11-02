@@ -1,0 +1,150 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+# Own a host's baseline OS state — the settings nobody's role covers and everybody assumes.
+#
+# WHY THIS EXISTS. A host whose services are all rebuildable from roles can still have a base OS
+# owned by nothing: sshd config, unattended-upgrades, reboot behaviour. An sshd accepting password
+# authentication because no role had an opinion about it is one later `useradd` from a real
+# exposure, and nothing would catch that.
+#
+# SSHD IS CHANGED CAREFULLY. A bad sshd config on a remote host with one access path is a lockout
+# with no way back but the provider console. So:
+#   - the config is VALIDATED by sshd itself before being installed (`sshd -t`), which refuses to
+#     write a file that would fail to parse
+#   - a drop-in is used, never an edit of sshd_config, so the distribution's file stays pristine
+#     and the change is one file deletion away from being reverted
+#   - the running config is read back AFTER reload, and a FRESH connection is proven
+#
+# Generate-don't-apply throughout.
+
+- name: Resolve declared options over their generated defaults
+  ansible.builtin.include_tasks: _resolve_defaults.yml
+
+- name: Read the CURRENT effective sshd config
+  # `sshd -T` reports the EFFECTIVE config — what is actually in force, including anything set by a
+  # drop-in or a Match block. Reading sshd_config alone would miss all of that.
+  ansible.builtin.command:
+    argv: [sshd, -T]
+  register: _baseline_sshd_before
+  changed_when: false
+  check_mode: false
+
+- name: Read the current unattended-upgrades posture
+  ansible.builtin.shell:
+    executable: /bin/bash
+    cmd: |
+      set -o pipefail
+      echo "installed=$(dpkg -l unattended-upgrades 2>/dev/null | grep -c '^ii' || true)"
+      echo "enabled=$(systemctl is-enabled unattended-upgrades 2>/dev/null || echo unknown)"
+      echo "autoreboot=$(grep -rhs 'Automatic-Reboot "true"' /etc/apt/apt.conf.d/ | grep -cv '^//' || true)"
+  register: _baseline_uu_before
+  changed_when: false
+  check_mode: false
+
+- name: Report what would change
+  vars:
+    _pw_now: "{{ 'yes' if 'passwordauthentication yes' in _baseline_sshd_before.stdout else 'no' }}"
+    _root_now: >-
+      {{ _baseline_sshd_before.stdout_lines | select('match', '^permitrootlogin ')
+         | map('split', ' ') | map('last') | first | default('unknown') }}
+  ansible.builtin.debug:
+    msg:
+      - "host                 : {{ inventory_hostname }}"
+      - "password auth        : {{ _pw_now }} -> {{ 'yes' if baseline_ssh_password_auth | bool else 'no' }}"
+      - "permit root login    : {{ _root_now }} -> {{ baseline_ssh_permit_root_login }}"
+      - "unattended-upgrades  : {{ _baseline_uu_before.stdout_lines }}"
+      - "auto-reboot          : {{ 'on' if 'autoreboot=1' in _baseline_uu_before.stdout else 'off' }} -> {{ 'on' if baseline_unattended_auto_reboot | bool else 'off'
+        }}"
+      - "{{ 'DRY RUN — nothing changed. Re-run with baseline_apply=true.' if not (baseline_apply | bool) else 'APPLYING.' }}"
+
+- name: Apply the baseline
+  when: baseline_apply | bool
+  block:
+    - name: Install the sshd drop-in
+      # validate: sshd itself refuses to write a config it cannot parse, so a typo here fails the
+      # task rather than the next login. `-f %s` checks the file in isolation; combined with a
+      # drop-in that only sets these two keys, that is sufficient.
+      ansible.builtin.template:
+        src: sshd-baseline.conf.j2
+        dest: /etc/ssh/sshd_config.d/99-estate-baseline.conf
+        mode: "0644"
+        validate: "sshd -t -f %s"
+      register: _baseline_sshd_file
+
+    - name: Reload sshd
+      # noqa: no-handler — deliberately NOT a handler. Handlers run at END OF PLAY, which would put
+      # the reload AFTER the read-back gate below: the gate would then verify the OLD config and
+      # pass while the new one had not been loaded. On an sshd change that is the worst possible
+      # place to be wrong.
+      #
+      # RELOAD, not restart: a reload re-reads the config without dropping existing connections, so
+      # the session running this play survives even if the new config were wrong.
+      ansible.builtin.systemd:
+        name: ssh
+        state: reloaded
+      when: _baseline_sshd_file is changed
+
+    - name: Read the effective sshd config back
+      # The authority is sshd's own view AFTER the reload, not the file we wrote. A drop-in can be
+      # syntactically valid and still be overridden by an earlier Match block.
+      ansible.builtin.command:
+        argv: [sshd, -T]
+      register: _baseline_sshd_after
+      changed_when: false
+      check_mode: false
+
+    - name: HARD GATE — the effective config must match what was declared
+      vars:
+        # sshd's own accepted spellings per setting. 'prohibit-password' and 'without-password' are
+        # the SAME setting; -T reports the latter. Kept as data rather than a regex so adding a
+        # synonym later is a one-line change and the mapping is readable.
+        _baseline_root_login_synonyms:
+          "yes": ["yes"]
+          "no": ["no"]
+          "prohibit-password": ["prohibit-password", "without-password"]
+          "forced-commands-only": ["forced-commands-only"]
+      ansible.builtin.assert:
+        that:
+          - "('passwordauthentication ' ~ ('yes' if baseline_ssh_password_auth | bool else 'no')) in _baseline_sshd_after.stdout"
+          # `sshd -T` NORMALISES some keywords to a synonym: 'prohibit-password' is reported back
+          # as 'without-password' (they are the same setting; the older spelling is what -T emits).
+          # A literal string comparison therefore fails against a config that applied correctly,
+          # so compare against the accepted synonyms instead.
+          - "(_baseline_sshd_after.stdout_lines | select('match', '^permitrootlogin ') | map('split', ' ') | map('last') | first) in _baseline_root_login_synonyms[baseline_ssh_permit_root_login]"
+        fail_msg: >-
+          sshd's effective config does not match the declaration. Wanted passwordauthentication
+          {{ 'yes' if baseline_ssh_password_auth | bool else 'no' }} and permitrootlogin
+          {{ baseline_ssh_permit_root_login }}. Something else — an earlier drop-in or a Match
+          block — is overriding it. The drop-in can be removed with:
+          rm /etc/ssh/sshd_config.d/99-estate-baseline.conf && systemctl reload ssh
+        success_msg: "sshd effective config matches the declaration."
+        quiet: true
+
+    - name: Prove SSH still works on a FRESH connection
+      # The connection already open would keep working even if sshd were now refusing new ones.
+      # This is the check that turns "the config looks right" into "we can still get in".
+      ansible.builtin.meta: reset_connection
+
+    - name: Reconnect
+      ansible.builtin.wait_for_connection:
+        timeout: 30
+
+    - name: Ensure unattended-upgrades is installed
+      ansible.builtin.apt:
+        name: unattended-upgrades
+        state: present
+        install_recommends: false
+      when: baseline_unattended_upgrades | bool
+
+    - name: Set the automatic-reboot policy explicitly
+      # Written explicitly rather than left to the distribution default: a default is not a
+      # decision, and an unplanned reboot on a host carrying a public service is an outage nobody
+      # scheduled.
+      ansible.builtin.copy:
+        dest: /etc/apt/apt.conf.d/51-estate-unattended-reboot
+        mode: "0644"
+        content: |
+          // Managed by the host_baseline role. Reboots stay DELIBERATE: an unattended reboot is
+          // the worst moment to discover an untested boot path.
+          Unattended-Upgrade::Automatic-Reboot "{{ 'true' if baseline_unattended_auto_reboot | bool else 'false' }}";
+      when: baseline_unattended_upgrades | bool

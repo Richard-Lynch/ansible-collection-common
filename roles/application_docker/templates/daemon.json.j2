@@ -1,0 +1,6 @@
+{# SPDX-License-Identifier: GPL-3.0-or-later #}
+{# Docker daemon configuration. Managed by roles/application_docker — hand edits are overwritten. #}
+{{ ({
+     'log-driver': application_docker_log_driver,
+     'log-opts': application_docker_log_opts,
+   } | combine(application_docker_daemon_config)) | to_nice_json }}

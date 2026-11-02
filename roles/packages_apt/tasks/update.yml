@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+- name: Update apt
+  ansible.builtin.apt:
+    update_cache: true
+    upgrade: true
+    cache_valid_time: 3600

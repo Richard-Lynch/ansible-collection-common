@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+- name: Restart systemd-networkd
+  ansible.builtin.systemd:
+    name: systemd-networkd
+    state: restarted
+    enabled: true

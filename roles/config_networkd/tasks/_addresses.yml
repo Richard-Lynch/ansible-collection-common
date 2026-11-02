@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+# The address list the template renders. Its own file so the molecule scenario INCLUDES the role's
+# real composition instead of retyping it (a retyped copy would test itself, not the role).
+- name: Compose the full address list (primary + declared extras)
+  # Single source of truth for the template. See networkd_config_extra_addresses in defaults for why
+  # out-of-band additions to the rendered file do not survive.
+  ansible.builtin.set_fact:
+    _networkd_addresses: >-
+      {{ ([networkd_config_address] if (networkd_config_address | default('') | length > 0) else [])
+         + (networkd_config_extra_addresses | default([])) }}

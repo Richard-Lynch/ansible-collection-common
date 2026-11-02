@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+# AUTO-GENERATED argument spec — DO NOT EDIT.
+#
+# Source of truth: roles/config_networkd/meta/argument_specs.py
+# Regenerate:      venv/bin/python tools/argspec/cli.py x generate config_networkd
+#
+# Edits here are silently overwritten on the next generation. To change a value or its
+# documentation, change the OptionSpec in the source file above — descriptions there
+# are emitted as the comments in this file.
+argument_specs:
+  main:
+    short_description: Own a host's systemd-networkd config for one interface
+    description:
+      - Renders /etc/systemd/network/10-<interface>.network (DHCP, or static with
+      - optional extra addresses) and disables ifupdown so networkd is the only client.
+    version_added: '1.0'
+    author: Collection maintainers
+    options:
+      networkd_config_interface:
+        description:
+          - Interface the .network file matches. Default eth0.
+        type: str
+        required: false
+      networkd_config_address:
+        description:
+          - Static primary address as a CIDR. Empty means DHCP.
+        type: str
+        required: false
+      networkd_config_gateway:
+        description:
+          - Gateway for a static host. Empty means none written.
+        type: str
+        required: false
+      networkd_config_dns:
+        description:
+          - Resolvers for a static host. Empty means none written.
+        type: list
+        required: false
+        elements: str
+      networkd_config_extra_addresses:
+        description:
+          - Additional CIDRs the host holds. The role owns the whole file, so an
+          - address added out of band is removed on the next run; declare it here.
+        type: list
+        required: false
+        elements: str

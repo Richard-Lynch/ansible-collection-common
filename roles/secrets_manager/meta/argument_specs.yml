@@ -1,0 +1,122 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+# AUTO-GENERATED argument spec — DO NOT EDIT.
+#
+# Source of truth: roles/secrets_manager/meta/argument_specs.py
+# Regenerate:      venv/bin/python tools/argspec/cli.py x generate secrets_manager
+#
+# Edits here are silently overwritten on the next generation. To change a value or its
+# documentation, change the OptionSpec in the source file above — descriptions there
+# are emitted as the comments in this file.
+argument_specs:
+  main:
+    short_description: '1Password credential lifecycle: get/generate/roll/remove/list'
+    version_added: '1.0'
+    author: Collection maintainers
+    options:
+      secrets_manager_action:
+        description:
+          - 'get: read the value. ensure: idempotent create-if-absent-else-read (for provisioning).'
+          - 'generate: create a new item (REFUSES if present).'
+          - 'roll: rotate an existing item (backup-then-replace). remove: archive (backup-then-archive).'
+          - 'list: enumerate vault items (optionally by tag); no title needed.'
+        type: str
+        required: false
+        default: get
+        choices:
+          - get
+          - ensure
+          - generate
+          - roll
+          - remove
+          - list
+      secrets_manager_title:
+        description:
+          - 1Password item title (path-style, e.g. service/example-app/admin-password).
+        type: str
+        required: true
+      secrets_manager_vault:
+        description:
+          - 'The 1Password vault to act on. REQUIRED, with no default: which vault an'
+          - estate keeps its credentials in is estate configuration, so it is declared
+          - in inventory (group_vars), never assumed by the role.
+          - Must be a member of secrets_manager_allowed_vaults, or the role refuses.
+        type: str
+        required: true
+      secrets_manager_allowed_vaults:
+        description:
+          - The vaults this role may manage — the scope of the service account it runs
+          - under. REQUIRED, declared in inventory beside secrets_manager_vault.
+          - A caller that overrides secrets_manager_vault to any other vault (a personal
+          - vault, say) is refused before any op call is made. Keep it to the vaults the
+          - write-capable service account can reach; an empty list refuses everything.
+        type: list
+        required: true
+        elements: str
+      secrets_manager_category:
+        description:
+          - Item category for generate.
+        type: str
+        required: false
+        default: password
+        choices:
+          - password
+          - API Credential
+      secrets_manager_field:
+        description:
+          - Secret field name; derived from category ('password' or 'credential').
+        type: str
+        required: false
+      secrets_manager_value:
+        description:
+          - Explicit value for generate/roll. Empty => generate a strong random value.
+        type: str
+        required: false
+      secrets_manager_generate_length:
+        description:
+          - Length of a generated value.
+        type: int
+        required: false
+        default: 32
+      secrets_manager_notes:
+        description:
+          - Note stored on the item (usage / rotation). Encouraged on generate.
+        type: str
+        required: false
+      secrets_manager_purpose:
+        description:
+          - What the secret is for (STRING field; mirrored into notes if notes empty).
+        type: str
+        required: false
+      secrets_manager_rotation_days:
+        description:
+          - Expected rotation cadence in days (metadata for a health view). '' = don't stamp.
+        type: str
+        required: false
+      secrets_manager_tags:
+        description:
+          - Tags to set on the item (comma-separated). Used by list filtering.
+        type: str
+        required: false
+      secrets_manager_list_tag:
+        description:
+          - "list: only show items carrying this tag ('' = all)."
+        type: str
+        required: false
+      secrets_manager_permanent_delete:
+        description:
+          - 'remove: permanently delete instead of soft-archive. Backup is enforced regardless.'
+        type: bool
+        required: false
+        default: false
+      secrets_manager_backup_dir:
+        description:
+          - Where value snapshots are written before destructive ops (gitignored).
+        type: str
+        required: false
+      secrets_manager_result_var:
+        description:
+          - Fact name to return the value into (no_log'd).
+        type: str
+        required: false
+        default: secrets_manager_value_out

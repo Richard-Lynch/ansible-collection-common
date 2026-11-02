@@ -1,0 +1,69 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Assert on artefacts produced by the ROLE'S templates and the ROLE'S package expression.
+---
+- name: Verify
+  hosts: localhost
+  gather_facts: false
+  vars:
+    _tmp: /tmp/molecule-application-docker
+    r: "{{ lookup('file', _tmp ~ '/results.json') | from_json }}"
+    daemon_default: "{{ lookup('file', _tmp ~ '/daemon.default.json') | from_json }}"
+    daemon_extended: "{{ lookup('file', _tmp ~ '/daemon.extended.json') | from_json }}"
+    dropin_default: "{{ lookup('file', _tmp ~ '/dropin.default.conf').splitlines() }}"
+    dropin_tcp: "{{ lookup('file', _tmp ~ '/dropin.tcp.conf').splitlines() }}"
+
+  tasks:
+    - name: daemon.json bounds container logs by default (and parses as JSON at all)
+      ansible.builtin.assert:
+        that:
+          - daemon_default['log-driver'] == 'json-file'
+          - daemon_default['log-opts']['max-size'] == '50m'
+          - daemon_default['log-opts']['max-file'] == '3'
+        fail_msg: "{{ daemon_default | to_json }}"
+        quiet: true
+
+    - name: A caller's extra daemon config is MERGED, not substituted for the log settings
+      ansible.builtin.assert:
+        that:
+          - daemon_extended['live-restore'] is true
+          - daemon_extended['log-opts']['max-size'] == '50m'
+        fail_msg: "{{ daemon_extended | to_json }}"
+        quiet: true
+
+    - name: By default dockerd listens on the unix socket ONLY
+      ansible.builtin.assert:
+        that:
+          - dropin_default[0] == '[Service]'
+          - "'ExecStart=' in dropin_default"
+          - "'ExecStart=/usr/bin/dockerd -H fd://' in dropin_default"
+          - dropin_default | select('search', 'tcp://') | select('match', 'ExecStart') | list | length == 0
+        fail_msg: "{{ dropin_default | to_json }}"
+        quiet: true
+
+    - name: The TCP socket appears only when deliberately enabled, on the loopback default
+      ansible.builtin.assert:
+        that:
+          - "'ExecStart=/usr/bin/dockerd -H fd:// -H tcp://127.0.0.1:2375' in dropin_tcp"
+        fail_msg: "{{ dropin_tcp | to_json }}"
+        quiet: true
+
+    - name: Each distro is pinned to ITS OWN version string
+      # A Debian version string has no install candidate on Ubuntu and vice versa, so pinning the
+      # wrong family fails the install outright.
+      ansible.builtin.assert:
+        that:
+          - ('docker-ce=' ~ r.version_debian) in r.pkgs_debian
+          - ('docker-ce=' ~ r.version_ubuntu) in r.pkgs_ubuntu
+          - ('docker-ce=' ~ r.version_ubuntu) not in r.pkgs_debian
+          - r.pkgs_ubuntu | select('search', 'ubuntu') | list | length >= 4
+          - r.pkgs_debian | select('search', 'ubuntu') | list | length == 0
+        fail_msg: "debian={{ r.pkgs_debian | to_json }} ubuntu={{ r.pkgs_ubuntu | to_json }}"
+        quiet: true
+
+    - name: With the pin off, no package carries a version
+      ansible.builtin.assert:
+        that:
+          - r.pkgs_unpinned | select('search', '=') | list | length == 0
+          - "'docker-ce' in r.pkgs_unpinned"
+        fail_msg: "{{ r.pkgs_unpinned | to_json }}"
+        quiet: true

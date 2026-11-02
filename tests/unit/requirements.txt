@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Installed by `ansible-test units` into its own environment. cryptography mints the fake HTTPS
+# server's self-signed certificate (the TLS-verification tests SKIP without it, so it is required
+# here rather than left optional).
+cryptography

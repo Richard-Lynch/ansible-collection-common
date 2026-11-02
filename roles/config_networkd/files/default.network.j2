@@ -1,0 +1,34 @@
+{# SPDX-License-Identifier: GPL-3.0-or-later #}
+[Match]
+Name={{ networkd_config_interface }}
+
+[Network]
+{% if _networkd_addresses | length > 0 %}
+{# STATIC — for hosts that must not depend on DHCP (above all the DNS/DHCP server itself, which
+   cannot take its address from the service it provides).
+   Renders EVERY address the host should hold. A host can legitimately carry more than one — a
+   DNS/DHCP server holds its management address AND a service address that moves at cutover. Those
+   extra addresses MUST be declared here (networkd_config_extra_addresses), because this role owns
+   the whole file: anything added out-of-band, e.g. by a lineinfile, is silently destroyed the next
+   time the role runs. #}
+{% for _addr in _networkd_addresses %}
+Address={{ _addr }}
+{% endfor %}
+{% if networkd_config_gateway | default('') | length > 0 %}
+Gateway={{ networkd_config_gateway }}
+{% endif %}
+{% for _dns in networkd_config_dns | default([]) %}
+DNS={{ _dns }}
+{% endfor %}
+{% else %}
+DHCP=yes
+{% endif %}
+MulticastDNS=yes
+LLMNR=yes
+DNSDefaultRoute=yes
+{% if _networkd_addresses | length == 0 %}
+
+[DHCP]
+UseHostname=true
+SendHostname=true
+{% endif %}

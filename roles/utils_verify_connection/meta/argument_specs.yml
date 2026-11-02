@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+# AUTO-GENERATED argument spec — DO NOT EDIT.
+#
+# Source of truth: roles/utils_verify_connection/meta/argument_specs.py
+# Regenerate:      venv/bin/python tools/argspec/cli.py x generate utils_verify_connection
+#
+# Edits here are silently overwritten on the next generation. To change a value or its
+# documentation, change the OptionSpec in the source file above — descriptions there
+# are emitted as the comments in this file.
+argument_specs:
+  main:
+    short_description: Ensures connection to a host in dynamic inventory after creation/restart
+    description:
+      - Refreshes the inventory until the host has an ansible_host, asserts that it does,
+      - then waits until Ansible can connect to it.
+    version_added: '1.0'
+    author: Collection maintainers
+    options:
+      utils_verify_connection_hostname:
+        description:
+          - Inventory hostname to wait for.
+        type: str
+        required: true
+      utils_verify_connection_refresh_retries:
+        description:
+          - Inventory refreshes after the first, while ansible_host is empty.
+        type: int
+        required: false
+      utils_verify_connection_refresh_delay:
+        description:
+          - Seconds between inventory refreshes.
+        type: int
+        required: false
+      utils_verify_connection_wait_delay:
+        description:
+          - 'wait_for_connection: seconds before the first attempt.'
+        type: int
+        required: false
+      utils_verify_connection_wait_sleep:
+        description:
+          - 'wait_for_connection: seconds between attempts.'
+        type: int
+        required: false
+      utils_verify_connection_wait_connect_timeout:
+        description:
+          - 'wait_for_connection: per-attempt connect timeout.'
+        type: int
+        required: false
+      utils_verify_connection_wait_timeout:
+        description:
+          - 'wait_for_connection: overall timeout.'
+        type: int
+        required: false

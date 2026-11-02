@@ -1,0 +1,88 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Assert on the tree the ROLE deployed, then exercise its `cleanup` entrypoint on a scratch dir of
+# its own (cleanup is destructive, so it never runs against the converged tree).
+---
+- name: Verify
+  hosts: localhost
+  gather_facts: false
+  vars:
+    _tmp: /tmp/molecule-deployment-config
+    _dest: /tmp/molecule-deployment-config/dest
+
+  tasks:
+    - name: Stat every file the role should have produced
+      ansible.builtin.stat:
+        path: "{{ _dest }}/{{ item }}"
+      loop: [app.conf, sub/settings.yml, sub/settings.yml.j2, keep.managed.conf]
+      register: _st
+
+    - name: Index the stats by name
+      ansible.builtin.set_fact:
+        _files: "{{ dict(_st.results | map(attribute='item') | zip(_st.results | map(attribute='stat'))) }}"
+
+    - name: Static files are copied and .j2 files rendered with the suffix stripped
+      ansible.builtin.assert:
+        that:
+          - _files['app.conf'].exists
+          - _files['sub/settings.yml'].exists
+          - not _files['sub/settings.yml.j2'].exists
+        fail_msg: "{{ _files | to_json }}"
+        quiet: true
+
+    - name: Every deployed file carries the caller's mode, not the source file's
+      ansible.builtin.assert:
+        that:
+          - _files['app.conf'].mode == '0640'
+          - _files['sub/settings.yml'].mode == '0640'
+        fail_msg: "app.conf={{ _files['app.conf'].mode }} settings.yml={{ _files['sub/settings.yml'].mode }}"
+        quiet: true
+
+    - name: The template saw the play's variables
+      ansible.builtin.assert:
+        that:
+          - '''greeting: "hello-from-molecule"'' in lookup(''file'', _dest ~ ''/sub/settings.yml'')'
+        fail_msg: "{{ lookup('file', _dest ~ '/sub/settings.yml') }}"
+        quiet: true
+
+    - name: An existing *.managed.* file keeps its local edit
+      ansible.builtin.assert:
+        that:
+          - lookup('file', _dest ~ '/keep.managed.conf') == 'local edit'
+        fail_msg: "The role overwrote a managed file: {{ lookup('file', _dest ~ '/keep.managed.conf') }}"
+        quiet: true
+
+    - name: The inline changed flag is true after a real change and false after a no-op
+      # The flag exists because the handler that also sets it runs too late for a caller's
+      # "reload if changed" task. A flag stuck at either value would read correctly half the time.
+      ansible.builtin.assert:
+        that:
+          - lookup('file', _tmp ~ '/changed.first') == 'True'
+          - lookup('file', _tmp ~ '/changed.second') == 'False'
+        fail_msg: >-
+          first={{ lookup('file', _tmp ~ '/changed.first') }}
+          second={{ lookup('file', _tmp ~ '/changed.second') }}
+        quiet: true
+
+    - name: Make a scratch tree for the cleanup entrypoint
+      ansible.builtin.file:
+        path: "{{ _tmp }}/cleanme/nested"
+        state: directory
+        mode: "0755"
+
+    - name: Run the role's cleanup entrypoint on it
+      ansible.builtin.include_role:
+        name: deployment_config
+        tasks_from: cleanup
+      vars:
+        deployment_config_location: "{{ _tmp }}/cleanme"
+
+    - name: Read back the scratch tree
+      ansible.builtin.stat:
+        path: "{{ _tmp }}/cleanme"
+      register: _gone
+
+    - name: Cleanup removed the whole location
+      ansible.builtin.assert:
+        that:
+          - not _gone.stat.exists
+        quiet: true

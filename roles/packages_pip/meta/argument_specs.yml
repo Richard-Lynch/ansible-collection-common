@@ -1,0 +1,57 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+# AUTO-GENERATED argument spec — DO NOT EDIT.
+#
+# Source of truth: roles/packages_pip/meta/argument_specs.py
+# Regenerate:      venv/bin/python tools/argspec/cli.py x generate packages_pip
+#
+# Edits here are silently overwritten on the next generation. To change a value or its
+# documentation, change the OptionSpec in the source file above — descriptions there
+# are emitted as the comments in this file.
+argument_specs:
+  main:
+    description:
+      - Installs requires `pip`
+    version_added: '1.0'
+    author: Collection maintainers
+    options:
+      packages_pip_skip_setup:
+        type: bool
+        required: false
+        default: true
+      packages_pip_virtualenv:
+        type: str
+        required: false
+      packages_pip_virtualenv_command:
+        type: str
+        required: false
+      packages_pip_packages:
+        type: list
+        required: false
+        default: []
+        elements: dict
+        options:
+          name:
+            type: str
+            required: true
+          state:
+            type: str
+            required: true
+            choices:
+              - absent
+              - latest
+              - present
+              - forcereinstall
+          version:
+            type: str
+            required: false
+          install_recommends:
+            type: bool
+            required: false
+            default: false
+  setup:
+    description:
+      - 'Prepare a Debian-family host for pip: upgrade, clear the PEP 668 marker, install pip'
+    version_added: '1.0'
+    author: Collection maintainers
+    options: {}

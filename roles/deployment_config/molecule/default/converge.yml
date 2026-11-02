@@ -1,0 +1,60 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# A REAL converge, into a scratch directory on the controller: the role copies the fixture tree,
+# renders its .j2 files, and must leave a `*.managed.*` file that already exists untouched.
+#
+# The role is invoked TWICE in this play. The first call deploys; the second changes nothing, and
+# deployment_config_changed must say so INLINE (callers branch on it during the run, before any
+# handler fires). Each call's flag is recorded with `force: false`, so molecule's idempotence
+# re-run cannot overwrite the first converge's evidence.
+---
+- name: Converge — deploy the fixture tree with deployment_config
+  hosts: localhost
+  gather_facts: true
+  vars:
+    _tmp: /tmp/molecule-deployment-config
+    example_greeting: hello-from-molecule
+
+  tasks:
+    - name: Make the destination, holding a LOCAL edit of a managed file
+      ansible.builtin.file:
+        path: "{{ _tmp }}/dest"
+        state: directory
+        mode: "0755"
+
+    - name: A local edit to a *.managed.* file — the role must never overwrite it
+      ansible.builtin.copy:
+        dest: "{{ _tmp }}/dest/keep.managed.conf"
+        content: "local edit\n"
+        mode: "0644"
+        force: false
+
+    - name: First deployment
+      ansible.builtin.include_role:
+        name: deployment_config
+      vars: &role_args
+        deployment_config_source: "{{ playbook_dir }}/fixture"
+        deployment_config_destination: "{{ _tmp }}/dest"
+        # The controller user, not root: the scenario runs unprivileged. The gid is passed as a
+        # number on purpose — callers do that (a pgid), and the argspec must accept it.
+        deployment_config_file_owner: "{{ ansible_facts.user_id }}"
+        deployment_config_file_group: "{{ ansible_facts.user_gid }}"
+        deployment_config_file_mode: "0640"
+
+    - name: Record the first call's inline changed flag (never overwritten)
+      ansible.builtin.copy:
+        dest: "{{ _tmp }}/changed.first"
+        content: "{{ deployment_config_changed | bool }}\n"
+        mode: "0644"
+        force: false
+
+    - name: Second deployment of the same tree — a no-op
+      ansible.builtin.include_role:
+        name: deployment_config
+      vars: *role_args
+
+    - name: Record the second call's inline changed flag (never overwritten)
+      ansible.builtin.copy:
+        dest: "{{ _tmp }}/changed.second"
+        content: "{{ deployment_config_changed | bool }}\n"
+        mode: "0644"
+        force: false

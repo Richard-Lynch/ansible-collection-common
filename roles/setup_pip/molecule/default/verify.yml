@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+- name: Verify
+  hosts: localhost
+  gather_facts: false
+  vars:
+    _root: /tmp/molecule-setup-pip/lib
+  tasks:
+    - name: Stat every planted file
+      ansible.builtin.stat:
+        path: "{{ _root }}/{{ item }}"
+      loop:
+        - python3.11/EXTERNALLY-MANAGED
+        - python3.12/EXTERNALLY-MANAGED
+        - python3.12/os.py
+        - python3.12/nested/EXTERNALLY-MANAGED
+      register: _st
+
+    - name: Index the stats by path
+      ansible.builtin.set_fact:
+        _exists: "{{ dict(_st.results | map(attribute='item') | zip(_st.results | map(attribute='stat.exists'))) }}"
+
+    - name: The marker is gone for EVERY Python, not one hardcoded version
+      ansible.builtin.assert:
+        that:
+          - not _exists['python3.11/EXTERNALLY-MANAGED']
+          - not _exists['python3.12/EXTERNALLY-MANAGED']
+        fail_msg: "{{ _exists | to_json }}"
+        quiet: true
+
+    - name: Nothing else was touched — not the stdlib, not a same-named file deeper down
+      ansible.builtin.assert:
+        that:
+          - _exists['python3.12/os.py']
+          - _exists['python3.12/nested/EXTERNALLY-MANAGED']
+        fail_msg: "{{ _exists | to_json }}"
+        quiet: true

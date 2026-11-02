@@ -1,0 +1,97 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Assert on artifacts produced by the ROLE'S own template and the ROLE'S own synonym table.
+#
+# Nothing here re-derives the role's logic over a hand-typed stub — the rendered config came from
+# templates/sshd-baseline.conf.j2 and the mapping was parsed out of tasks/main.yml, so a regression
+# in either turns this red.
+---
+- name: Verify
+  hosts: localhost
+  gather_facts: false
+
+  tasks:
+    - name: Read what converge produced
+      ansible.builtin.slurp:
+        src: /tmp/molecule-host-baseline/results.json
+      register: _raw
+
+    - name: Parse it
+      ansible.builtin.set_fact:
+        r: "{{ _raw.content | b64decode | from_json }}"
+
+    # --- the shipped defaults ---------------------------------------------------------------------
+    - name: The shipped defaults must render a locked-down sshd drop-in
+      # If the DEFAULT ever stops being 'no', that regression fails here rather than on the next
+      # audit of a live host.
+      ansible.builtin.assert:
+        that:
+          - "'PasswordAuthentication no' in r.default_conf"
+          - "'PermitRootLogin prohibit-password' in r.default_conf"
+        fail_msg: >-
+          The shipped defaults no longer render a locked-down config. Rendered:
+          {{ r.default_conf }}
+        success_msg: "Shipped defaults render PasswordAuthentication no + PermitRootLogin prohibit-password."
+        quiet: true
+
+    - name: The template must be driven by its variables, not hardcoded
+      # Without this, a template that ignored its inputs and always emitted the safe answer would
+      # satisfy the assertion above while silently discarding an operator's explicit choice.
+      ansible.builtin.assert:
+        that:
+          - "'PasswordAuthentication yes' in r.permissive_conf"
+          - "'PermitRootLogin yes' in r.permissive_conf"
+        fail_msg: >-
+          The template ignored explicit overrides — it rendered {{ r.permissive_conf }} when asked
+          for password auth and root login. A template that always emits the safe value passes every
+          security assertion while honouring none of its inputs.
+        success_msg: "Template honours explicit overrides in both directions."
+        quiet: true
+
+    # --- the synonym mapping ----------------------------------------------------------------------
+    - name: The role's synonym table must still know that -T reports 'without-password'
+      # THE BUG THIS SCENARIO EXISTS FOR. `sshd -T` normalises 'prohibit-password' to the older
+      # spelling 'without-password'. A literal comparison fails against a config that applied
+      # perfectly — the operator sees "sshd's effective config does not match the declaration" on a
+      # correctly configured host, and the natural next move is to weaken the gate.
+      ansible.builtin.assert:
+        that:
+          - "'without-password' in r.synonyms['prohibit-password']"
+          - "'prohibit-password' in r.synonyms['prohibit-password']"
+        fail_msg: >-
+          The synonym table no longer maps 'prohibit-password' to sshd -T's 'without-password'
+          spelling. Table is: {{ r.synonyms }}. The verification gate in tasks/main.yml will now
+          report a correctly-applied config as a mismatch.
+        success_msg: "Synonym table still covers both spellings of prohibit-password."
+        quiet: true
+
+    - name: Every accepted sshd -T spelling must map to the declared setting
+      vars:
+        _wrong: "{{ r.synonym_results | selectattr('must_match') | rejectattr('matched') | list }}"
+      ansible.builtin.assert:
+        that:
+          - _wrong | length == 0
+        fail_msg: >-
+          The gate would REJECT a correctly-applied config for: {{ _wrong }}. Each of these is a
+          real spelling `sshd -T` emits for the setting that was declared.
+        success_msg: >-
+          All {{ r.synonym_results | selectattr('must_match') | list | length }} valid
+          declared/reported pairs are accepted.
+        quiet: true
+
+    - name: A WRONG effective setting must NOT be accepted
+      # The direction that matters for security. Without this, a table mapping everything to
+      # everything would satisfy the assertion above and pass a host still permitting root password
+      # login while the declaration said prohibit-password.
+      vars:
+        _loose: "{{ r.synonym_results | rejectattr('must_match') | selectattr('matched') | list }}"
+      ansible.builtin.assert:
+        that:
+          - _loose | length == 0
+        fail_msg: >-
+          The gate would ACCEPT a mismatched config for: {{ _loose }}. The synonym table is too
+          loose — a host whose effective sshd config differs from the declaration would pass
+          verification, which is the failure this gate exists to prevent.
+        success_msg: >-
+          All {{ r.synonym_results | rejectattr('must_match') | list | length }} mismatched pairs
+          are correctly rejected.
+        quiet: true

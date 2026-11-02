@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Assert on what the ROLE'S template rendered from the ROLE'S address composition.
+---
+- name: Verify
+  hosts: localhost
+  gather_facts: false
+  vars:
+    _tmp: /tmp/molecule-config-networkd
+    dhcp: "{{ lookup('file', _tmp ~ '/dhcp.network').splitlines() }}"
+    static: "{{ lookup('file', _tmp ~ '/static.network').splitlines() }}"
+    extra_only: "{{ lookup('file', _tmp ~ '/extra_only.network').splitlines() }}"
+
+  tasks:
+    - name: The rendered file starts at [Match] (the licence comment renders to nothing)
+      ansible.builtin.assert:
+        that:
+          - dhcp[0] == '[Match]'
+          - static[0] == '[Match]'
+        fail_msg: "First line is {{ dhcp[0] | to_json }} — the template header leaked into the output."
+        quiet: true
+
+    - name: No declaration means DHCP, with no static address written
+      ansible.builtin.assert:
+        that:
+          - "'Name=eth0' in dhcp"
+          - "'DHCP=yes' in dhcp"
+          - "'[DHCP]' in dhcp"
+          - dhcp | select('match', 'Address=') | list | length == 0
+        fail_msg: "{{ dhcp | to_json }}"
+        quiet: true
+
+    - name: A static declaration renders EVERY address, the gateway and the resolver — and no DHCP
+      ansible.builtin.assert:
+        that:
+          - static | select('match', 'Address=') | list == ['Address=192.0.2.3/24', 'Address=192.0.2.2/24']
+          - "'Gateway=192.0.2.1' in static"
+          - "'DNS=192.0.2.53' in static"
+          - "'DHCP=yes' not in static"
+          - "'[DHCP]' not in static"
+        fail_msg: "{{ static | to_json }}"
+        quiet: true
+
+    - name: Extra addresses alone still make the host static (the role owns the whole file)
+      ansible.builtin.assert:
+        that:
+          - extra_only | select('match', 'Address=') | list == ['Address=198.51.100.7/24']
+          - "'DHCP=yes' not in extra_only"
+          - extra_only | select('match', 'Gateway=') | list | length == 0
+        fail_msg: "{{ extra_only | to_json }}"
+        quiet: true

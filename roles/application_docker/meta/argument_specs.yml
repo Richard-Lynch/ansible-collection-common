@@ -1,0 +1,70 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+# AUTO-GENERATED argument spec — DO NOT EDIT.
+#
+# Source of truth: roles/application_docker/meta/argument_specs.py
+# Regenerate:      venv/bin/python tools/argspec/cli.py x generate application_docker
+#
+# Edits here are silently overwritten on the next generation. To change a value or its
+# documentation, change the OptionSpec in the source file above — descriptions there
+# are emitted as the comments in this file.
+argument_specs:
+  main:
+    short_description: Install Docker (version-pinned per distro) and own its daemon config
+    description:
+      - Installs Docker through geerlingguy.docker with a per-distro version pin, writes
+      - /etc/docker/daemon.json (log rotation by default), and a systemd drop-in that keeps
+      - dockerd on the unix socket unless a TCP socket is deliberately enabled.
+    version_added: '1.0'
+    author: Collection maintainers
+    options:
+      application_docker_pin:
+        description:
+          - Pin the Docker packages to the per-distro versions below.
+        type: bool
+        required: false
+      application_docker_version_debian:
+        description:
+          - docker-ce package version used on Debian.
+        type: str
+        required: false
+      application_docker_version_ubuntu:
+        description:
+          - docker-ce package version used on Ubuntu.
+        type: str
+        required: false
+      application_docker_containerd_version_debian:
+        description:
+          - containerd.io package version used on Debian.
+        type: str
+        required: false
+      application_docker_containerd_version_ubuntu:
+        description:
+          - containerd.io package version used on Ubuntu.
+        type: str
+        required: false
+      application_docker_log_driver:
+        description:
+          - daemon.json log-driver.
+        type: str
+        required: false
+      application_docker_log_opts:
+        description:
+          - daemon.json log-opts (max-size / max-file bound json-file logs).
+        type: dict
+        required: false
+      application_docker_daemon_config:
+        description:
+          - Extra daemon.json keys, merged over the log settings.
+        type: dict
+        required: false
+      docker_expose_tcp:
+        description:
+          - Also listen on an UNAUTHENTICATED TCP socket. Leave false; see defaults/main.yml.
+        type: bool
+        required: false
+      docker_tcp_bind:
+        description:
+          - host:port for the TCP socket when docker_expose_tcp is true.
+        type: str
+        required: false

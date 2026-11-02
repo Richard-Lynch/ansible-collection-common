@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+# `meta:` actions run synchronously inside the strategy plugin and ALWAYS IGNORE until:/retries:/
+# delay:. The previous version set all three here, so this "wait for the IP to appear" refreshed the
+# inventory exactly ONCE and moved on — a newly provisioned guest whose address had not yet been
+# published was simply not waited for, and provisioning continued against an empty ansible_host.
+# The loop must live on a REAL task; the meta refresh is what that loop drives.
+- name: Wait for the IP to appear in the dynamic inventory for {{ utils_verify_connection_hostname }}
+  ansible.builtin.include_tasks: refresh_until_present.yml
+  loop: "{{ range(0, (utils_verify_connection_refresh_retries | int) + 1) | list }}"
+  loop_control:
+    loop_var: _uvc_attempt
+    label: "attempt {{ _uvc_attempt + 1 }}/{{ (utils_verify_connection_refresh_retries | int) + 1 }}"
+  when: >-
+    (hostvars[utils_verify_connection_hostname]['ansible_host'] | default('')) in ['', None]
+
+- name: HARD GATE — the inventory must actually have an address by now
+  # An explicit assert after the loop. Without it a loop that never succeeds simply falls through
+  # green, which is the same failure mode as the meta bug it replaced.
+  ansible.builtin.assert:
+    that:
+      - (hostvars[utils_verify_connection_hostname]['ansible_host'] | default('')) not in ['', None]
+    fail_msg: >-
+      {{ utils_verify_connection_hostname }} still has no ansible_host after
+      {{ utils_verify_connection_refresh_retries }} inventory refreshes. The guest may not have
+      booted, or may not have taken a DHCP lease yet.
+    success_msg: >-
+      {{ utils_verify_connection_hostname }} resolved to
+      {{ hostvars[utils_verify_connection_hostname]['ansible_host'] | default('?') }}.
+    quiet: true
+
+- name: Verify the container is accessible via Ansible "{{ utils_verify_connection_hostname }}"
+  delegate_to: "{{ utils_verify_connection_hostname }}"
+  ansible.builtin.wait_for_connection:
+    delay: "{{ utils_verify_connection_wait_delay }}"
+    sleep: "{{ utils_verify_connection_wait_sleep }}"
+    connect_timeout: "{{ utils_verify_connection_wait_connect_timeout }}"
+    timeout: "{{ utils_verify_connection_wait_timeout }}"

@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+# AUTO-GENERATED argument spec — DO NOT EDIT.
+#
+# Source of truth: roles/packages_apt/meta/argument_specs.py
+# Regenerate:      venv/bin/python tools/argspec/cli.py x generate packages_apt
+#
+# Edits here are silently overwritten on the next generation. To change a value or its
+# documentation, change the OptionSpec in the source file above — descriptions there
+# are emitted as the comments in this file.
+argument_specs:
+  main:
+    description:
+      - Installs requires `apt`
+    version_added: '1.0'
+    author: Collection maintainers
+    options:
+      packages_apt_skip_update:
+        type: bool
+        required: false
+        default: false
+      packages_apt_packages:
+        type: list
+        required: false
+        default: []
+        elements: dict
+        options:
+          name:
+            type: str
+            required: true
+          state:
+            type: str
+            required: true
+            choices:
+              - absent
+              - build-dep
+              - latest
+              - present
+              - fixed
+          install_recommends:
+            type: bool
+            required: false
+            default: false
+  update:
+    description:
+      - Update apt
+    version_added: '1.0'
+    author: Collection maintainers
+    options: {}

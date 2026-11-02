@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+# AUTO-GENERATED defaults file — DO NOT EDIT.
+#
+# Source of truth: roles/packages_apt/meta/argument_specs.py
+# Regenerate:      venv/bin/python tools/argspec/cli.py x generate packages_apt
+#
+# Edits here are silently overwritten on the next generation. To change a value or its
+# documentation, change the OptionSpec in the source file above — descriptions there
+# are emitted as the comments in this file.
+# Entrypoint:      update

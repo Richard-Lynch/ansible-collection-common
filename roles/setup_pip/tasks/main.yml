@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+- name: Resolve declared options over their generated defaults
+  ansible.builtin.include_tasks: _resolve_defaults.yml
+
+- name: Update packages
+  ansible.builtin.apt:
+    upgrade: true
+    update_cache: true
+  failed_when: false
+
+# After the update, because a python3 package upgrade can (re)create the marker.
+- name: Remove the PEP 668 marker of every system Python
+  ansible.builtin.include_tasks: _pep668.yml
+
+- name: Install pip
+  ansible.builtin.apt:
+    name:
+      - pip
+    update_cache: true
+    install_recommends: false
+    state: present

@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Run the role's pep668 entrypoint against the fake stdlib root built by prepare.yml.
+---
+- name: Converge — remove the PEP 668 markers under a fake stdlib root
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Run setup_pip's pep668 entrypoint
+      ansible.builtin.include_role:
+        name: setup_pip
+        tasks_from: pep668
+      vars:
+        setup_pip_stdlib_root: /tmp/molecule-setup-pip/lib

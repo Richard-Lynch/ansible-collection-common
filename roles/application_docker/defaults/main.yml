@@ -1,0 +1,92 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+# Legacy single-version variable. Kept for backward compatibility with any caller that set it
+# directly; the per-distro resolved value below is what the package list actually uses.
+application_docker_version: "5:28.3.3-1~debian.12~bookworm"
+# containerd is versioned per-distro too, and on a completely different scheme: Debian serves
+# 1.7.27-1 while Ubuntu noble serves 2.3.4-2~ubuntu.24.04~noble. Pinning both to the Debian string
+# would make the Ubuntu install fail outright.
+application_docker_containerd_version_debian: "1.7.27-1"
+application_docker_containerd_version_ubuntu: "2.3.4-2~ubuntu.24.04~noble"
+application_docker_containerd_version: "1.7.27-1"
+
+# PER-DISTRO PIN. Both families are pinned — to DIFFERENT versions, because Docker's package
+# version strings are distro-specific and the two families have different constraints:
+#
+#   Debian  28.3.3  — held back deliberately. Docker 29.x ships runc 1.3.x, whose stricter
+#                     setgroups handling breaks images that drop privileges inside an unprivileged
+#                     LXC container ("setgroups: invalid argument"); 28.3.x (runc 1.2.x) runs them.
+#   Ubuntu  29.7.2  — kept modern; pinned rather than floating so hosts running this role do not
+#                     drift onto different Docker versions with nothing reconciling them.
+#
+# A Debian bookworm version string has no install candidate in Ubuntu's Docker repo (and vice
+# versa), so pinning the wrong family fails the install outright — the safe outcome, but only by
+# accident, which is why the version is chosen per distro below rather than shared.
+#
+# Downgrading Docker is not a benign operation: it can wipe the image store, and without images
+# Docker cannot reconstruct its containers — they vanish from `docker ps -a`. Volumes survive, but
+# every stack on the host has to be redeployed. Never let a rebuild silently move a pin downward.
+#
+# Set application_docker_pin=false to opt a host out deliberately (it will then take whatever its
+# repo serves). To move a pin, change the version (in inventory, or here for every caller) and run
+# the update play — that is a decision someone makes, not something a rebuild does on its own.
+application_docker_version_debian: "5:28.3.3-1~debian.12~bookworm"
+application_docker_version_ubuntu: "5:29.7.2-1~ubuntu.24.04~noble"
+
+application_docker_pin: true
+
+# Resolved from the host's own distro. A Debian version string has no candidate on Ubuntu and
+# vice versa, so picking the wrong one does not install the wrong Docker — it fails the play,
+# which is the safe direction but not a control worth relying on.
+application_docker_containerd_resolved: >-
+  {{ application_docker_containerd_version_ubuntu
+     if (ansible_distribution | default('')) == 'Ubuntu'
+     else application_docker_containerd_version_debian }}
+
+application_docker_version_resolved: >-
+  {{ application_docker_version_ubuntu
+     if (ansible_distribution | default('')) == 'Ubuntu'
+     else application_docker_version_debian }}
+
+application_docker_packages: >-
+  {{
+    ([
+      'docker-ce=' ~ application_docker_version_resolved,
+      'docker-ce-cli=' ~ application_docker_version_resolved,
+      'docker-ce-rootless-extras=' ~ application_docker_version_resolved,
+      'containerd.io=' ~ application_docker_containerd_resolved,
+      'docker-buildx-plugin',
+    ]) if (application_docker_pin | bool) else ([
+      'docker-ce', 'docker-ce-cli', 'docker-ce-rootless-extras',
+      'containerd.io', 'docker-buildx-plugin',
+    ])
+  }}
+
+# SECURITY — leave this false.
+#
+# true enables a plain-HTTP Docker API socket, which is unauthenticated root access to the host
+# for anyone who can reach the port.
+#
+# The inventory plugin that motivated it (community.docker.docker_containers) works fine over SSH:
+#   docker_host: "ssh://root@<host>"
+# If you genuinely need a network socket, use TLS on 2376 with client certificates, not this.
+docker_expose_tcp__default: false
+docker_tcp_bind__default: "127.0.0.1:2375"
+
+# --- container log rotation -----------------------------------------------------------------------
+#
+# UNBOUNDED BY DEFAULT in Docker itself: the json-file driver keeps ONE file per container and
+# grows it forever, so a chatty container can fill the host's disk and take every service on it
+# down. `max-size` + `max-file` are the only thing that bounds it. 50m x 3 keeps 150 MB per
+# container — ample for local debugging; ship logs elsewhere if you need longer history.
+#
+# NOTE this applies to containers CREATED after the daemon restarts; existing containers keep the
+# options they were created with. Recreating them is what makes it take effect everywhere.
+application_docker_log_driver: "json-file"
+application_docker_log_opts:
+  max-size: "50m"
+  max-file: "3"
+
+# Everything else in daemon.json this role should own. Kept as a dict so a caller can extend it
+# without the role having to know every key.
+application_docker_daemon_config: {}

@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+# AUTO-GENERATED defaults file — DO NOT EDIT.
+#
+# Source of truth: roles/setup_pip/meta/argument_specs.py
+# Regenerate:      venv/bin/python tools/argspec/cli.py x generate setup_pip
+#
+# Edits here are silently overwritten on the next generation. To change a value or its
+# documentation, change the OptionSpec in the source file above — descriptions there
+# are emitted as the comments in this file.
+# Entrypoint:      main
+
+# Directory holding the system Pythons' stdlib dirs (python3.X/). Every
+# <root>/python3.X/EXTERNALLY-MANAGED marker found one level below it is removed.
+setup_pip_stdlib_root__default: /usr/lib

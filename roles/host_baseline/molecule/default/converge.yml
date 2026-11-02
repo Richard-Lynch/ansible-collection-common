@@ -1,0 +1,135 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Render the role's OWN template and exercise the role's OWN synonym mapping.
+#
+# NOTHING IS APPLIED. baseline_apply is never set true, no sshd is reloaded, nothing is written
+# outside a temp dir. A scenario that actually converged this role would rewrite the effective sshd
+# config of whatever host CI happens to run on.
+#
+# The synonym table is READ OUT OF tasks/main.yml rather than retyped here. Retyping it would be a
+# tautology — the test would assert a copy against itself and stay green while the role's real
+# table drifted.
+---
+# PLAY 1 — the permissive render, in ISOLATION.
+#
+# It must run in its own play because `_resolve_defaults.yml` uses `set_fact`, and a fact BEATS a
+# task-level `vars:` in Ansible's precedence order. Overrides set as task vars after the resolver
+# has run are silently ignored, so the "permissive" file would render identically to the default
+# one and the assertion that the template honours its inputs would fail against a working template.
+- name: Render the template with password auth deliberately enabled
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    _tmp: /tmp/molecule-host-baseline
+    # Play vars, set BEFORE any resolver fact exists for these names.
+    baseline_ssh_password_auth: true
+    baseline_ssh_permit_root_login: "yes"
+
+  tasks:
+    - name: Make the render dir
+      ansible.builtin.file:
+        path: "{{ _tmp }}"
+        state: directory
+        mode: "0755"
+
+    - name: Render the permissive config
+      # Proves the template is driven by its variables rather than hardcoding the safe answer. A
+      # template that emitted `PasswordAuthentication no` unconditionally would satisfy every
+      # security-flavoured assertion while honouring none of its inputs.
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../../templates/sshd-baseline.conf.j2"
+        dest: "{{ _tmp }}/permissive.conf"
+        mode: "0644"
+
+
+# PLAY 2 — the shipped defaults, plus the synonym mapping.
+- name: Converge
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    _tmp: /tmp/molecule-host-baseline
+
+  tasks:
+    - name: Make a render dir
+      ansible.builtin.file:
+        path: "{{ _tmp }}"
+        state: directory
+        mode: "0755"
+
+    - name: Load the role's generated defaults
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/../../defaults/main.yml"
+
+    - name: Resolve them via the role's OWN _resolve_defaults.yml
+      # Included, never mirrored: a new option added to the role cannot silently bypass this test.
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/../../tasks/_resolve_defaults.yml"
+
+    # --- 1. the SHIPPED defaults must render a locked-down config ---------------------------------
+    - name: Render the template with the role's shipped defaults
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../../templates/sshd-baseline.conf.j2"
+        dest: "{{ _tmp }}/default.conf"
+        mode: "0644"
+
+    # --- 3. the synonym mapping, taken from the ROLE ----------------------------------------------
+    - name: Extract the role's real synonym table from tasks/main.yml
+      # Parsing the role's own task file rather than restating the mapping. If someone drops
+      # 'without-password' from the table, this scenario turns red — which is the entire point.
+      ansible.builtin.set_fact:
+        _role_synonyms: >-
+          {{ (lookup('file', playbook_dir ~ '/../../tasks/main.yml') | from_yaml
+              | selectattr('block', 'defined') | map(attribute='block') | flatten
+              | selectattr('vars', 'defined') | map(attribute='vars')
+              | selectattr('_baseline_root_login_synonyms', 'defined')
+              | map(attribute='_baseline_root_login_synonyms') | first) }}
+
+    - name: Simulate `sshd -T` output for each accepted spelling
+      # These are the exact strings sshd -T emits. The role must map every one of them back to the
+      # setting the operator declared.
+      ansible.builtin.set_fact:
+        _sshd_t_cases:
+          - {declared: "prohibit-password", reported: "without-password", must_match: true}
+          - {declared: "prohibit-password", reported: "prohibit-password", must_match: true}
+          - {declared: "yes", reported: "yes", must_match: true}
+          - {declared: "no", reported: "no", must_match: true}
+          - {declared: "forced-commands-only", reported: "forced-commands-only", must_match: true}
+          # NEGATIVES — the mapping must not be so loose that a WRONG value passes. A host still
+          # permitting root password login while the declaration said prohibit-password is exactly
+          # the failure this gate exists to catch.
+          - {declared: "prohibit-password", reported: "yes", must_match: false}
+          - {declared: "no", reported: "yes", must_match: false}
+          - {declared: "no", reported: "without-password", must_match: false}
+
+    - name: Evaluate each case through the ROLE'S table
+      ansible.builtin.set_fact:
+        _synonym_results: >-
+          {{ _synonym_results | default([]) + [{
+               'declared': item.declared,
+               'reported': item.reported,
+               'must_match': item.must_match,
+               'matched': item.reported in (_role_synonyms[item.declared] | default([])),
+             }] }}
+      loop: "{{ _sshd_t_cases }}"
+      loop_control:
+        label: "{{ item.declared }} vs sshd-reports {{ item.reported }}"
+
+    - name: Hand the results to verify.yml
+      # set_fact does not cross molecule's converge/verify playbook boundary; a file does.
+      ansible.builtin.copy:
+        dest: "{{ _tmp }}/results.json"
+        mode: "0644"
+        content: |
+          {{ {
+               'default_conf': lookup('file', _tmp ~ '/default.conf'),
+               'permissive_conf': lookup('file', _tmp ~ '/permissive.conf'),
+               'synonyms': _role_synonyms,
+               'synonym_results': _synonym_results,
+             } | to_nice_json }}
+
+    - name: Report
+      ansible.builtin.debug:
+        msg:
+          - "synonym table from role: {{ _role_synonyms }}"
+          - "cases evaluated        : {{ _synonym_results | length }}"
+          - "cases behaving as required: {{ _synonym_results | selectattr('matched', 'eq', true) | selectattr('must_match') | list | length }} positive, {{ _synonym_results | selectattr('matched', 'eq', false) | rejectattr('must_match') | list | length }} negative"

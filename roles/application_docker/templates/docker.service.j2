@@ -1,0 +1,21 @@
+{# SPDX-License-Identifier: GPL-3.0-or-later #}
+[Service]
+# SECURITY: dockerd listens on the unix socket ONLY.
+#
+# `-H tcp://0.0.0.0:2375` would expose the Docker API to the entire network with NO
+# authentication and NO TLS. Anyone who can reach the port can start a privileged container and
+# mount the host filesystem — unauthenticated root on the host.
+#
+# A common reason to want a TCP socket is the community.docker.docker_containers inventory plugin,
+# but it does not need one: the plugin works over SSH, and Ansible already reaches hosts that way.
+#   docker_host: "ssh://root@<host>"      instead of     tcp://<host>:2375
+#
+# If a network socket is ever genuinely required, it must be TLS-authenticated (2376) with client
+# certs — never plain 2375. Set docker_expose_tcp=true to opt in deliberately, and read the warning
+# in defaults/main.yml first.
+ExecStart=
+{% if docker_expose_tcp | default(docker_expose_tcp__default) | bool %}
+ExecStart=/usr/bin/dockerd -H fd:// -H tcp://{{ docker_tcp_bind | default(docker_tcp_bind__default) }}
+{% else %}
+ExecStart=/usr/bin/dockerd -H fd://
+{% endif %}

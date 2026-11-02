@@ -1,0 +1,309 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+# secrets_manager — 1Password credential lifecycle (get/generate/roll/remove).
+# Runs op on the controller (localhost) under a write-capable 1Password service account.
+#
+# ===============================================================================================
+# WHY `no_log: true` IS ON THE TASKS BELOW THAT IT IS ON
+#
+# A `set_fact` prints its value at default verbosity, and a task that fails mid-request dumps its
+# module arguments (and `-vvv` prints them unasked). A secret scanner over the working tree never
+# sees a value that only exists in a run log or a CI transcript, so the role itself must keep the
+# value out of the log.
+#
+# `no_log` is on every task that touches a plaintext VALUE: the item lookup and its parse, the
+# `get` return, the backup snapshot/read-back/assert, the new-value resolution, the create and roll
+# commands (which pass the value in the environment), and the result-var returns. It is
+# deliberately NOT on validate-inputs, the vault-scope assert, the exists checks, the item listing,
+# the error-reporting tasks or the remove/report path: those carry titles, names, return codes and
+# booleans, never a value, and hiding them costs diagnostic value for nothing. The line is "does
+# this task handle the secret itself", not "does this task appear near one".
+#
+# A failing `op` task still reports usefully: stderr carries the error, not the value, which is
+# why the "fail loudly on error" task shows stderr.
+# ===============================================================================================
+
+- name: Validate inputs
+  ansible.builtin.assert:
+    that:
+      - secrets_manager_action in ['get', 'ensure', 'generate', 'roll', 'remove', 'list']
+      - secrets_manager_action == 'list' or secrets_manager_title | length > 0
+    fail_msg: >-
+      Set secrets_manager_action (get|ensure|generate|roll|remove|list); title required for all but list.
+    quiet: true
+
+- name: Stamp today's date (for rotation metadata)
+  ansible.builtin.set_fact:
+    _sm_today: "{{ now(fmt='%Y-%m-%d') }}"
+  when: secrets_manager_action in ['ensure', 'generate', 'roll']
+
+- name: Enforce vault scope (only the vaults the service account is meant to manage)
+  # Both values come from INVENTORY and neither has a default (argspec: required), so this is a
+  # comparison of two declarations, never of a declaration against a role-supplied fallback. An
+  # empty allow-list refuses everything rather than nothing: `in []` is false.
+  ansible.builtin.assert:
+    that:
+      - secrets_manager_allowed_vaults | length > 0
+      - secrets_manager_vault in secrets_manager_allowed_vaults
+    fail_msg: >-
+      secrets_manager refuses vault '{{ secrets_manager_vault }}'. It only manages
+      {{ secrets_manager_allowed_vaults }} (secrets_manager_allowed_vaults, the service account's
+      scope). Other vaults are outside this role's scope.
+    quiet: true
+
+# ---------------------------------------------------------------------------
+# LIST — enumerate vault items (optionally by tag); returns early, no item lookup needed.
+# ---------------------------------------------------------------------------
+- name: "List — vault items"
+  when: secrets_manager_action == 'list'
+  block:
+    - name: List items
+      ansible.builtin.command:
+        argv: >-
+          {{ ['op', 'item', 'list', '--vault=' + secrets_manager_vault, '--format=json']
+             + (['--tags=' + secrets_manager_list_tag] if secrets_manager_list_tag | length > 0 else []) }}
+      delegate_to: localhost
+      become: false
+      register: _sm_list
+      changed_when: false
+
+    - name: Return the item titles
+      ansible.builtin.set_fact:
+        secrets_manager_list_out: "{{ _sm_list.stdout | from_json | map(attribute='title') | sort }}"
+
+    - name: Show the list
+      ansible.builtin.debug:
+        msg: "{{ secrets_manager_list_out }}"
+
+# One read of current state drives every branch (present? + current value for backups). Skipped for
+# list (which returned above); every downstream task is guarded by its action, so list falls through.
+- name: Look up the current item
+  ansible.builtin.command:
+    cmd: >-
+      op item get "{{ secrets_manager_title }}"
+      --vault "{{ secrets_manager_vault }}"
+      --fields "label={{ secrets_manager_field }}" --reveal --format json
+  delegate_to: localhost
+  become: false
+  register: _current
+  changed_when: false
+  failed_when: false
+  when: secrets_manager_action != 'list'
+  no_log: true
+
+- name: Record whether the item exists
+  ansible.builtin.set_fact:
+    _sm_exists: "{{ _current.rc == 0 }}"
+    _sm_current_value: "{{ (_current.stdout | from_json).value | default('') if _current.rc == 0 else '' }}"
+  when: secrets_manager_action != 'list'
+  no_log: true
+
+# ---------------------------------------------------------------------------
+# GET — read only
+# ---------------------------------------------------------------------------
+- name: "Get — item must exist"
+  ansible.builtin.fail:
+    msg: "get: '{{ secrets_manager_title }}' not found in {{ secrets_manager_vault }}."
+  when:
+    - secrets_manager_action == 'get'
+    - not _sm_exists
+
+- name: "Get — return the value"
+  # also serves `ensure` when the item already exists (idempotent no-op create → just return current)
+  ansible.builtin.set_fact:
+    "{{ secrets_manager_result_var }}": "{{ _sm_current_value }}"
+  when:
+    - secrets_manager_action in ['get', 'ensure']
+    - _sm_exists
+  no_log: true
+
+# ---------------------------------------------------------------------------
+# Backup-then-act — snapshot the current value before any destructive op (roll/remove).
+# Written to a gitignored dir, 0600, then read back + asserted identical before we proceed.
+# ---------------------------------------------------------------------------
+- name: "Destructive — take + verify a backup snapshot first"
+  when:
+    - secrets_manager_action in ['roll', 'remove']
+    - _sm_exists
+  block:
+    - name: Ensure the backup dir exists (0700)
+      ansible.builtin.file:
+        path: "{{ secrets_manager_backup_dir }}"
+        state: directory
+        mode: "0700"
+      delegate_to: localhost
+      become: false
+
+    - name: Compute the backup file path
+      ansible.builtin.set_fact:
+        _sm_backup_file: >-
+          {{ secrets_manager_backup_dir }}/{{ secrets_manager_title | regex_replace('[/ ]', '_') }}.{{ secrets_manager_action }}.bak
+
+    - name: Snapshot the current value (0600)
+      ansible.builtin.copy:
+        dest: "{{ _sm_backup_file }}"
+        content: "{{ _sm_current_value }}"
+        mode: "0600"
+      delegate_to: localhost
+      become: false
+      no_log: true
+
+    - name: Read the snapshot back
+      ansible.builtin.slurp:
+        src: "{{ _sm_backup_file }}"
+      delegate_to: localhost
+      become: false
+      register: _sm_backup_read
+      no_log: true
+
+    - name: Assert the backup is intact before proceeding (never lose data)
+      ansible.builtin.assert:
+        that:
+          - (_sm_backup_read.content | b64decode) == _sm_current_value
+          - _sm_current_value | length > 0
+        fail_msg: "Backup verification failed for {{ secrets_manager_title }} — aborting before any change."
+        quiet: true
+      no_log: true
+
+# ---------------------------------------------------------------------------
+# Resolve the new value for generate/roll (supplied or generated)
+# ---------------------------------------------------------------------------
+- name: Resolve the new value (generate/roll/ensure-when-absent)
+  ansible.builtin.set_fact:
+    _sm_new_value: >-
+      {{ secrets_manager_value
+         if (secrets_manager_value | length > 0)
+         else lookup('community.general.random_string',
+                     length=secrets_manager_generate_length, special=false) }}
+  when:
+    - secrets_manager_action in ['generate', 'roll'] or (secrets_manager_action == 'ensure' and not _sm_exists)
+  no_log: true
+
+# ---------------------------------------------------------------------------
+# GENERATE — create a NEW item (refuse if present)
+# ---------------------------------------------------------------------------
+- name: "Generate — refuse to clobber an existing item (use roll to rotate)"
+  ansible.builtin.fail:
+    msg: "generate: '{{ secrets_manager_title }}' already exists. Use action=roll to rotate it."
+  when:
+    - secrets_manager_action == 'generate'
+    - _sm_exists
+
+- name: "Generate — create the item"
+  # shell + </dev/null so op doesn't treat piped stdin as a template; secret + notes via env (not argv)
+  # so they never hit the process list. Field assignment: "<field>[password]=$VALUE".
+  # Rotation metadata (purpose/last_rotation/rotation_schedule_days) are plain STRING fields; op tracks
+  # created_at/updated_at itself so we don't stamp a 'created' field.
+  ansible.builtin.shell: >-
+    op item create
+    --category={{ secrets_manager_category | quote }}
+    --title={{ secrets_manager_title | quote }}
+    --vault={{ secrets_manager_vault | quote }}
+    {{ ('--tags=' + (secrets_manager_tags | quote)) if secrets_manager_tags | length > 0 else '' }}
+    {{ (secrets_manager_field ~ '[' ~ ('concealed' if secrets_manager_field == 'credential' else 'password') ~ ']') | quote }}"=${_SM_VAL}"
+    "notes[text]=${_SM_NOTES}"
+    "purpose[text]=${_SM_PURPOSE}"
+    "last_rotation[text]={{ _sm_today }}"
+    "rotation_schedule_days[text]=${_SM_ROTDAYS}"
+    </dev/null
+  environment:
+    _SM_VAL: "{{ _sm_new_value }}"
+    _SM_NOTES: "{{ secrets_manager_notes if secrets_manager_notes | length > 0 else secrets_manager_purpose }}"
+    _SM_PURPOSE: "{{ secrets_manager_purpose }}"
+    _SM_ROTDAYS: "{{ secrets_manager_rotation_days }}"
+  delegate_to: localhost
+  become: false
+  when:
+    - secrets_manager_action in ['generate', 'ensure']
+    - not _sm_exists
+  register: _sm_created
+  changed_when: _sm_created.rc == 0
+  failed_when: false
+  no_log: true
+
+- name: "Generate — fail loudly on error (stderr has no secret)"
+  ansible.builtin.fail:
+    msg: "create failed: {{ _sm_created.stderr | default('(no stderr)') }}"
+  when:
+    - secrets_manager_action in ['generate', 'ensure']
+    - _sm_created is defined and not (_sm_created is skipped)
+    - (_sm_created.rc | default(0)) != 0
+
+- name: "Generate — return the new value"
+  ansible.builtin.set_fact:
+    "{{ secrets_manager_result_var }}": "{{ _sm_new_value }}"
+  when:
+    - secrets_manager_action in ['generate', 'ensure']
+    - not _sm_exists
+  no_log: true
+
+# ---------------------------------------------------------------------------
+# ROLL — rotate an EXISTING item (backup already taken + verified above)
+# ---------------------------------------------------------------------------
+- name: "Roll — item must exist"
+  ansible.builtin.fail:
+    msg: "roll: '{{ secrets_manager_title }}' not found. Use action=generate to create it."
+  when:
+    - secrets_manager_action == 'roll'
+    - not _sm_exists
+
+- name: "Roll — replace the value + stamp last_rotation"
+  # shell + </dev/null so op doesn't try to parse stdin as a JSON template ("invalid JSON provided");
+  # the new value is passed via env (not argv) so it never hits the process list.
+  ansible.builtin.shell: >-
+    op item edit {{ secrets_manager_title | quote }}
+    --vault={{ secrets_manager_vault | quote }}
+    {{ secrets_manager_field | quote }}"=${_SM_VAL}"
+    "last_rotation[text]={{ _sm_today }}"
+    </dev/null
+  environment:
+    _SM_VAL: "{{ _sm_new_value }}"
+  delegate_to: localhost
+  become: false
+  when:
+    - secrets_manager_action == 'roll'
+    - _sm_exists
+  register: _sm_rolled
+  changed_when: _sm_rolled.rc == 0
+  no_log: true
+
+- name: "Roll — return the new value + backup location"
+  ansible.builtin.set_fact:
+    "{{ secrets_manager_result_var }}": "{{ _sm_new_value }}"
+    secrets_manager_backup_file_out: "{{ _sm_backup_file }}"
+  when:
+    - secrets_manager_action == 'roll'
+    - _sm_exists
+  no_log: true
+
+# ---------------------------------------------------------------------------
+# REMOVE — archive (soft) or permanent delete (backup already taken + verified above)
+# ---------------------------------------------------------------------------
+- name: "Remove — item must exist"
+  ansible.builtin.fail:
+    msg: "remove: '{{ secrets_manager_title }}' not found (nothing to remove)."
+  when:
+    - secrets_manager_action == 'remove'
+    - not _sm_exists
+
+- name: "Remove — archive (soft, recoverable) unless permanent delete requested"
+  ansible.builtin.command:
+    argv: >-
+      {{ ['op', 'item', 'delete', secrets_manager_title, '--vault=' + secrets_manager_vault]
+         + ([] if secrets_manager_permanent_delete else ['--archive']) }}
+  delegate_to: localhost
+  become: false
+  when:
+    - secrets_manager_action == 'remove'
+    - _sm_exists
+  register: _sm_removed
+  changed_when: _sm_removed.rc == 0
+
+- name: "Remove — report"
+  ansible.builtin.debug:
+    msg: >-
+      {{ 'Permanently deleted' if secrets_manager_permanent_delete else 'Archived (recoverable in 1P)' }}
+      '{{ secrets_manager_title }}'. Value backed up to {{ _sm_backup_file }}.
+  when:
+    - secrets_manager_action == 'remove'
+    - _sm_exists

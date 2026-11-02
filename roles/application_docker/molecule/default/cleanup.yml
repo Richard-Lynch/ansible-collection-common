@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Runs BEFORE converge and again at the end of `molecule test`: verify must never read a file a
+# PREVIOUS run left behind. (Not done in converge itself, which would break the idempotence step.)
+---
+- name: Cleanup
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Remove the scenario's scratch dir
+      ansible.builtin.file:
+        path: /tmp/molecule-application-docker
+        state: absent

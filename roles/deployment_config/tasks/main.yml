@@ -1,0 +1,113 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+- name: Initialise changed status
+  ansible.builtin.set_fact:
+    deployment_config_changed: "{{ false }}"
+
+- name: Get all files in source directory
+  delegate_to: localhost
+  register: deployment_config__source_directory_contents
+  ansible.builtin.find:
+    paths: "{{ deployment_config_source }}"
+    patterns: "*"
+    file_type: file
+    recurse: true
+
+- name: Store all source files
+  ansible.builtin.set_fact:
+    deployment_config__source_files: "{{ deployment_config__source_directory_contents.files | map(attribute='path') | map('relpath', deployment_config_source) | default([])
+      }}"
+
+- name: Show all source files
+  ansible.builtin.debug:
+    var: deployment_config__source_files
+    verbosity: 1
+
+- name: Ensure directories exists
+  notify: Update changed status
+  register: deployment_config__dirs
+  ansible.builtin.file:
+    path: "{{ deployment_config_destination }}/{{ deployment_config__directory }}"
+    state: directory
+    mode: "0755"
+  loop: "{{ deployment_config__source_files | map('dirname') | unique }}"
+  loop_control:
+    loop_var: deployment_config__directory
+
+- name: Copy static files
+  notify: Update changed status
+  register: deployment_config__statics
+  ansible.builtin.copy:
+    src: "{{ deployment_config_source }}/{{ deployment_config__static_file }}"
+    dest: "{{ deployment_config_destination }}/{{ deployment_config__static_file }}"
+    owner: "{{ deployment_config_file_owner | default('root') }}"
+    group: "{{ deployment_config_file_group | default('root') }}"
+    # Default "preserve": the source file's own mode carries over. A caller that renders
+    # CREDENTIALS into its config sets deployment_config_file_mode explicitly (e.g. "0640"), or a
+    # world-readable source file lands world-readable on the host.
+    mode: "{{ deployment_config_file_mode | default('preserve') }}"
+    force: "{{ not (deployment_config__static_file is match('^([\\w\\-_]+\\.)+(managed)(\\.[\\w\\-_]+)+$')) }}"
+  loop: "{{ deployment_config__source_files | select('match', '(?!^.*\\.j2$)') }}"
+  loop_control:
+    loop_var: deployment_config__static_file
+
+- name: Copy template files
+  notify: Update changed status
+  register: deployment_config__templates
+  ansible.builtin.template:
+    src: "{{ deployment_config_source }}/{{ deployment_config__template_file }}"
+    dest: "{{ deployment_config_destination }}/{{ deployment_config__template_file | regex_replace('.j2$', '') }}"
+    owner: "{{ deployment_config_file_owner | default('root') }}"
+    group: "{{ deployment_config_file_group | default('root') }}"
+    # Default "preserve": the source file's own mode carries over. A caller that renders
+    # CREDENTIALS into its config sets deployment_config_file_mode explicitly (e.g. "0640"), or a
+    # world-readable source file lands world-readable on the host.
+    mode: "{{ deployment_config_file_mode | default('preserve') }}"
+  loop: "{{ deployment_config__source_files | select('match', '^.*\\.j2$') }}"
+  loop_control:
+    loop_var: deployment_config__template_file
+
+- name: Get all files in destination directory
+  register: deployment_config__destination_directory_contents
+  ansible.builtin.find:
+    paths: "{{ deployment_config_destination }}"
+    patterns: "*"
+    file_type: file
+    recurse: true
+- name: Store actual files
+  ansible.builtin.set_fact:
+    deployment_config__actual_files: "{{ deployment_config__destination_directory_contents.files | map(attribute='path') | map('relpath', deployment_config_destination)
+      | default([]) }}"
+- name: Show actual files
+  ansible.builtin.debug:
+    var: deployment_config__actual_files
+    verbosity: 1
+
+- name: Store leftover files
+  ansible.builtin.set_fact:
+    deployment_config__leftover_files: "{{ deployment_config__actual_files | difference(deployment_config__source_files) }}"
+- name: Show leftover files
+  ansible.builtin.debug:
+    var: deployment_config__leftover_files
+    verbosity: 1
+# - name: Cleanup leftover files
+#   notify: Update changed status
+
+- name: Flush handlers
+  ansible.builtin.meta: flush_handlers
+
+# Set the flag INLINE, not only via the handler.
+#
+# `Update changed status` is a handler, so it runs at the END of the play — long after a caller's
+# "reload the service if its config changed" task has already evaluated the flag as false and
+# skipped. The handler is kept (other callers may rely on it firing at play end), but callers that
+# branch on this flag DURING the run need it set now.
+#
+# A "reload when changed" guard that can never see the change leaves the running service on its
+# old config while the file on disk is new, and nothing reports the difference.
+- name: Record whether any config file actually changed (inline — handlers run too late)
+  ansible.builtin.set_fact:
+    deployment_config_changed: >-
+      {{ (deployment_config__dirs.changed | default(false))
+         or (deployment_config__statics.changed | default(false))
+         or (deployment_config__templates.changed | default(false)) }}

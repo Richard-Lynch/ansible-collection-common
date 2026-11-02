@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Guards are asserted inside converge (facts don't cross the converge/verify process boundary).
+# This placeholder confirms the scenario completed.
+---
+- name: Verify
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Scenario reached verify (guards were asserted in converge)
+      ansible.builtin.debug:
+        msg: "secrets_manager guards verified during converge."

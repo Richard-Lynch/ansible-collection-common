@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+# AUTO-GENERATED defaults file — DO NOT EDIT.
+#
+# Source of truth: roles/host_baseline/meta/argument_specs.py
+# Regenerate:      venv/bin/python tools/argspec/cli.py x generate host_baseline
+#
+# Edits here are silently overwritten on the next generation. To change a value or its
+# documentation, change the OptionSpec in the source file above — descriptions there
+# are emitted as the comments in this file.
+# Entrypoint:      main
+
+# Whether sshd accepts password authentication.
+# FALSE on any host with a public IP: a password-accepting sshd is a
+# brute-force target, and it only takes one later `useradd` with a weak
+# password to turn a theoretical exposure into a real one.
+baseline_ssh_password_auth__default: false
+
+# PermitRootLogin. 'prohibit-password' keeps key-based root access — which
+# automation that connects as root depends on — while refusing passwords.
+# 'no' locks out anything that connects as root.
+baseline_ssh_permit_root_login__default: prohibit-password
+
+# Whether unattended-upgrades is installed and enabled.
+baseline_unattended_upgrades__default: true
+
+# Whether unattended-upgrades may REBOOT on its own.
+# FALSE: an unplanned reboot on a host carrying a public service is an
+# outage nobody scheduled, and an untested boot path is discovered at the
+# worst moment. Reboots stay deliberate.
+baseline_unattended_auto_reboot__default: false
+
+# Generate-don't-apply. False reports the diff and changes nothing.
+baseline_apply__default: false

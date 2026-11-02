@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+# Delegates to setup_pip rather than keeping a second copy of it, so the PEP 668 marker is found
+# for whichever Python the host has.
+- name: Prepare the host for system pip
+  ansible.builtin.include_role:
+    name: setup_pip

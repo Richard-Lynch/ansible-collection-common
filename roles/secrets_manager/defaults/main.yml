@@ -1,0 +1,72 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+# secrets_manager — manage credentials in 1Password from Ansible.
+#
+# Designed to run under a write-capable 1Password SERVICE ACCOUNT (read_items + write_items on the
+# vaults in secrets_manager_allowed_vaults), so generate / roll / remove / get all run headless
+# (no desktop app).
+#
+# SAFETY: every destructive action (roll, remove) FIRST snapshots the current value
+# to a gitignored .secrets-backup/ and verifies the snapshot before overwriting/deleting — never lose
+# data. `remove` is a soft archive by default (recoverable in 1P), not a permanent delete.
+
+# What to do. One of: get | ensure | generate | roll | remove | list.
+#   get       — read the secret's value into a fact (no create/modify). Fails if absent.
+#   ensure    — idempotent: create if absent (generated/supplied), else return the existing value.
+#                Use this in provisioning plays ("make sure this secret exists"). Never overwrites.
+#   generate  — create a NEW item with a generated (or supplied) value; REFUSES if it already exists.
+#   roll      — rotate an EXISTING item's value (backup-then-replace). Fails if the item is absent.
+#   remove    — archive an EXISTING item (backup-then-archive; soft by default). Fails if absent.
+#   list      — list items in the vault (optionally filtered by tag); no title required.
+secrets_manager_action: "get"
+
+# 1Password item title — path-style, e.g. service/example-app/admin-password.
+secrets_manager_title: ""
+
+# secrets_manager_vault and secrets_manager_allowed_vaults have NO default, on purpose. Which vault
+# an estate keeps its credentials in is estate configuration, so both are declared in inventory
+# (group_vars) and the argspec marks them required. The role refuses a vault that is not in the
+# allow-list, so a caller overriding secrets_manager_vault (to a personal vault, say) is stopped
+# before any op call. Keep the list to the vaults the service account can reach.
+
+# Item shape. 'password' item → field 'password'; 'API Credential' → field 'credential'.
+secrets_manager_category: "password"
+secrets_manager_field: "{{ 'credential' if secrets_manager_category == 'API Credential' else 'password' }}"
+
+# For generate/roll: supply a value, or leave empty to generate one.
+secrets_manager_value: ""
+secrets_manager_generate_length: 32
+
+# A note stored on the item (what it's for / how to rotate). Strongly encouraged on generate.
+secrets_manager_notes: ""
+
+# Rotation metadata. Optional custom fields
+# stamped on generate/roll so a "secrets health" view can flag overdue rotations. 1Password already
+# tracks created_at/updated_at natively, so we do NOT duplicate a 'created' field.
+#   purpose               — free-text what-it's-for (also mirrored into notes if notes is empty)
+#   rotation_days         — expected rotation cadence; '' = don't stamp
+# last_rotation is stamped automatically (today's date) on generate + roll.
+secrets_manager_purpose: ""
+secrets_manager_rotation_days: ""
+
+# Tags to set on the item (comma-separated string, e.g. "service,example-app"). Used by `list`.
+secrets_manager_tags: ""
+
+# list: only show items carrying this tag ('' = all).
+secrets_manager_list_tag: ""
+
+# remove: soft archive (recoverable) by default. Set true ONLY for a deliberate permanent delete —
+# and only after a verified backup exists (the role enforces the backup regardless).
+secrets_manager_permanent_delete: false
+
+# Where value snapshots are written before destructive ops (MAY CONTAIN SECRETS — gitignore it).
+# Anchored to the PROJECT, i.e. the directory of the active ansible.cfg (the magic variable
+# ansible_config_file), so it is the same .secrets-backup/ whichever playbook invokes the role and
+# wherever the role itself is installed. Falls back to playbook_dir when no config file is in use.
+# Not derived from role_path: an installed collection's role lives outside the project, and a
+# backup of a secret must not land inside the collections directory.
+secrets_manager_backup_dir: >-
+  {{ ((ansible_config_file | default('', true) | dirname) or playbook_dir) ~ '/.secrets-backup' }}
+
+# Fact name the read/created/rolled value is returned into (no_log'd) for immediate downstream use.
+secrets_manager_result_var: "secrets_manager_value_out"

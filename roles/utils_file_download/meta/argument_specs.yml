@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+# AUTO-GENERATED argument spec — DO NOT EDIT.
+#
+# Source of truth: roles/utils_file_download/meta/argument_specs.py
+# Regenerate:      venv/bin/python tools/argspec/cli.py x generate utils_file_download
+#
+# Edits here are silently overwritten on the next generation. To change a value or its
+# documentation, change the OptionSpec in the source file above — descriptions there
+# are emitted as the comments in this file.
+argument_specs:
+  main:
+    description:
+      - Download a file from a URL
+    version_added: '1.0'
+    author: Collection maintainers
+    options:
+      file_download_path:
+        type: str
+        required: true
+      file_download_url:
+        type: str
+        required: true
+      file_download_ttl_days:
+        type: int
+        required: false
+        default: 1000
+      file_download_timeout:
+        type: int
+        required: false
+        default: 300
+      file_download_checksum:
+        description:
+          - Optional integrity check, as '<algorithm>:<hex>' or
+          - "'<algorithm>:<url-of-checksum-file>' — e.g. 'sha256:fc7bbc...'."
+          - get_url verifies after transfer and DELETES the file on mismatch.
+          - Empty means no verification, which is the historical behaviour of this
+          - role; supply one for anything where silent corruption matters (OS
+          - images, firmware).
+        type: str
+        required: false
+        default: ''
+      file_download_mode:
+        type: str
+        required: false
+        default: '0644'

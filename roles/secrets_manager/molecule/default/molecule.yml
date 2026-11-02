@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Offline scenario — no live 1Password in CI. Asserts input validation + vault-scope enforcement
+# (the role's key safety guarantees), which need no op access.
+---
+dependency:
+  name: galaxy
+driver:
+  name: default
+platforms:
+  - name: localhost
+provisioner:
+  name: ansible
+  env:
+    # An `env:` block REPLACES molecule's defaults rather than extending them, so the roles path
+    # must be declared here or the role is not found.
+    ANSIBLE_ROLES_PATH: "${MOLECULE_PROJECT_DIRECTORY}/../"
+    # Dependencies (galaxy.yml) are installed into collections.galaxy/ at the repo root; the
+    # second entry resolves this collection itself when the checkout sits at
+    # ansible_collections/richard_lynch/common. molecule does not read a repo ansible.cfg.
+    ANSIBLE_COLLECTIONS_PATH: "${MOLECULE_PROJECT_DIRECTORY}/../../collections.galaxy:${MOLECULE_PROJECT_DIRECTORY}/../../../../.."
+  inventory:
+    host_vars:
+      localhost:
+        ansible_connection: local
+        # The two REQUIRED inventory values (no role default). Placeholder vault name: the
+        # scenario never reaches op, every case it runs is refused before the first op call.
+        secrets_manager_vault: "Example-Vault"
+        secrets_manager_allowed_vaults: ["Example-Vault"]
+  playbooks:
+    converge: converge.yml
+    verify: verify.yml
+verifier:
+  name: ansible

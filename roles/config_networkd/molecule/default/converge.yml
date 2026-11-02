@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Render files/default.network.j2 for three declarations, through the ROLE'S tasks/_addresses.yml.
+#
+# The role defaults are loaded as play vars_files, and each case sets its inputs with set_fact,
+# which outranks them. (A task-level `vars:` would NOT: include_vars and set_fact both outrank task
+# vars, which is the trap that makes an override silently do nothing.)
+---
+- name: Converge — render the role's .network template for each declaration
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - ../../defaults/main.yml
+  vars:
+    _tmp: /tmp/molecule-config-networkd
+    _cases:
+      - name: dhcp
+        address: ""
+        gateway: ""
+        dns: []
+        extra: []
+      - name: static
+        address: "192.0.2.3/24"
+        gateway: "192.0.2.1"
+        dns: ["192.0.2.53"]
+        extra: ["192.0.2.2/24"]
+      - name: extra_only
+        address: ""
+        gateway: ""
+        dns: []
+        extra: ["198.51.100.7/24"]
+
+  tasks:
+    - name: Make the render dir
+      ansible.builtin.file:
+        path: "{{ _tmp }}"
+        state: directory
+        mode: "0755"
+
+    - name: Render one case
+      ansible.builtin.include_tasks: render_case.yml
+      loop: "{{ _cases }}"
+      loop_control:
+        loop_var: _case
+        label: "{{ _case.name }}"

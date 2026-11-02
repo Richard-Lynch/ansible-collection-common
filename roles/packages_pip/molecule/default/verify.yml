@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+- name: Verify
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Stat the venv's pip
+      ansible.builtin.stat:
+        path: /tmp/molecule-packages-pip/venv/bin/pip
+      register: _pip
+
+    - name: The role created the virtualenv it was pointed at
+      ansible.builtin.assert:
+        that:
+          - _pip.stat.exists
+        fail_msg: "No pip in /tmp/molecule-packages-pip/venv — the role did not create the venv."
+        quiet: true
+
+    - name: An unknown state must be rejected by the argspec, before pip runs
+      block:
+        - name: Pass state=installed
+          ansible.builtin.include_role:
+            name: packages_pip
+          vars:
+            packages_pip_skip_setup: true
+            packages_pip_virtualenv: /tmp/molecule-packages-pip/venv
+            packages_pip_packages:
+              - { name: pip, state: installed }
+
+        - name: The argspec accepted it — fail the test
+          ansible.builtin.fail:
+            msg: "packages_pip accepted state=installed."
+      rescue:
+        - name: It was the argspec's choices check on `state`
+          ansible.builtin.assert:
+            that:
+              - "'state' in (ansible_failed_result.msg | default(''))"
+              - "'installed' in (ansible_failed_result.msg | default(''))"
+            fail_msg: "Failed, but not on the state check: {{ ansible_failed_result.msg | default(ansible_failed_result) }}"
+            quiet: true

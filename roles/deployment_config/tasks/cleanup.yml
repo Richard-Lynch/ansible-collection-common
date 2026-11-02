@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+- name: Ensure configuration directory does not exist
+  ansible.builtin.file:
+    path: "{{ deployment_config_location }}"
+    state: absent

@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+utils_verify_connection_refresh_retries: 10
+utils_verify_connection_refresh_delay: 10
+
+utils_verify_connection_wait_delay: 0
+utils_verify_connection_wait_sleep: 1
+utils_verify_connection_wait_connect_timeout: 30
+utils_verify_connection_wait_timeout: 60

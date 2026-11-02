@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+- name: "Declare the inputs for {{ _case.name }}"
+  ansible.builtin.set_fact:
+    networkd_config_address: "{{ _case.address }}"
+    networkd_config_gateway: "{{ _case.gateway }}"
+    networkd_config_dns: "{{ _case.dns }}"
+    networkd_config_extra_addresses: "{{ _case.extra }}"
+
+- name: "Compose the address list through the role's own task file ({{ _case.name }})"
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/../../tasks/_addresses.yml"
+
+- name: "Render the role's template ({{ _case.name }})"
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/../../files/default.network.j2"
+    dest: "{{ _tmp }}/{{ _case.name }}.network"
+    mode: "0644"

@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# The negative path, which is the one that matters: a host that never gets an address must FAIL the
+# role's hard gate. The role once looped a `meta: refresh_inventory` with until:/retries:, which
+# meta ignores, so it refreshed once and carried on against an empty ansible_host — green.
+---
+- name: Verify
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: A host with no address must fail the hard gate
+      block:
+        - name: Verify the connection to uvc_noaddr (one refresh, no pause)
+          ansible.builtin.include_role:
+            name: utils_verify_connection
+          vars:
+            utils_verify_connection_hostname: uvc_noaddr
+            utils_verify_connection_refresh_retries: 0
+            utils_verify_connection_refresh_delay: 0
+
+        - name: The gate let it through — fail the test
+          ansible.builtin.fail:
+            msg: "utils_verify_connection passed a host that has no ansible_host."
+      rescue:
+        - name: It was the HARD GATE that fired
+          ansible.builtin.assert:
+            that:
+              - "'still has no ansible_host' in (ansible_failed_result.msg | default(''))"
+            fail_msg: "Failed, but not on the hard gate: {{ ansible_failed_result.msg | default(ansible_failed_result) }}"
+            quiet: true

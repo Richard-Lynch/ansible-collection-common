@@ -1,0 +1,59 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# A REAL converge, offline: the "remote" file is a fixture served over file://.
+#
+#   1. download it WITH a checksum  -> lands, verified, at the requested mode
+#   2. overwrite the copy locally    -> stands in for "this file is already here and fresh"
+#   3. call the role again           -> inside the TTL it must NOT re-download, so the local copy
+#                                       survives. That is the only observable proof the TTL gate
+#                                       works; a role that always re-downloaded would pass 1 and 3
+#                                       on content alone.
+---
+- name: Converge — download a fixture with utils_file_download
+  hosts: localhost
+  gather_facts: false
+  vars:
+    _tmp: /tmp/molecule-utils-file-download
+    _src: "{{ playbook_dir }}/fixture/payload.txt"
+
+  tasks:
+    - name: Make the download dir
+      ansible.builtin.file:
+        path: "{{ _tmp }}"
+        state: directory
+        mode: "0755"
+
+    - name: Checksum the fixture (from the file itself, so the scenario cannot drift from it)
+      ansible.builtin.stat:
+        path: "{{ _src }}"
+        checksum_algorithm: sha256
+      register: _fixture
+
+    - name: Download with checksum verification
+      ansible.builtin.include_role:
+        name: utils_file_download
+      vars:
+        file_download_url: "file://{{ _src }}"
+        file_download_path: "{{ _tmp }}/payload.txt"
+        file_download_checksum: "sha256:{{ _fixture.stat.checksum }}"
+        file_download_mode: "0600"
+
+    - name: Record what the first download wrote, before anything touches it
+      ansible.builtin.copy:
+        src: "{{ _tmp }}/payload.txt"
+        dest: "{{ _tmp }}/as-downloaded.txt"
+        mode: "0644"
+        force: false
+
+    - name: Replace the downloaded copy locally
+      ansible.builtin.copy:
+        dest: "{{ _tmp }}/payload.txt"
+        content: "LOCAL COPY\n"
+        mode: "0600"
+
+    - name: Call the role again — inside the TTL it must leave the file alone
+      ansible.builtin.include_role:
+        name: utils_file_download
+      vars:
+        file_download_url: "file://{{ _src }}"
+        file_download_path: "{{ _tmp }}/payload.txt"
+        file_download_mode: "0600"

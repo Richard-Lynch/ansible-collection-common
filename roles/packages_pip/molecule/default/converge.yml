@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# A real run of the role's install loop into a scratch virtualenv. The package is pip itself, which
+# a fresh venv already has, so no package index is ever contacted and the scenario works offline.
+# The setup entrypoint (apt + PEP 668) is skipped: it needs root on a Debian host, and setup_pip's
+# own scenario covers the marker removal.
+---
+- name: Converge — packages_pip into a scratch virtualenv
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Install into the venv (creating it)
+      ansible.builtin.include_role:
+        name: packages_pip
+      vars:
+        packages_pip_skip_setup: true
+        packages_pip_virtualenv: /tmp/molecule-packages-pip/venv
+        packages_pip_virtualenv_command: "python3 -m venv"
+        packages_pip_packages:
+          - { name: pip, state: present }

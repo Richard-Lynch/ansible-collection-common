@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+- name: Compose the address list
+  ansible.builtin.include_tasks: _addresses.yml
+
+- name: Ensure systemd-networkd config directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/network
+    state: directory
+    mode: "0755"
+
+- name: Deploy .network config file
+  ansible.builtin.template:
+    src: files/default.network.j2
+    dest: "/etc/systemd/network/10-{{ networkd_config_interface }}.network"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart systemd-networkd
+
+# Debian images commonly ship ifupdown (`networking.service` → its own dhclient on eth0). With
+# systemd-networkd ALSO doing DHCP that is TWO DHCP clients on one interface → two leases and two
+# addresses. networkd owns networking here, so ifupdown is disabled and only one client runs.
+- name: Gather service facts (to detect ifupdown networking.service)
+  ansible.builtin.service_facts:
+
+- name: Disable ifupdown (networking.service) so networkd is the only DHCP client
+  ansible.builtin.systemd:
+    name: networking.service
+    enabled: false
+    state: stopped
+    masked: true
+  when: "'networking.service' in ansible_facts.services"
+  notify: Restart systemd-networkd

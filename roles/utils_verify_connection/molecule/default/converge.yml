@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# The positive path: a host whose inventory entry HAS an address is found without a refresh loop
+# and answers wait_for_connection.
+---
+- name: Converge — wait for a host that has an address
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Verify the connection to uvc_target
+      ansible.builtin.include_role:
+        name: utils_verify_connection
+      vars:
+        utils_verify_connection_hostname: uvc_target
+        utils_verify_connection_refresh_retries: 0
+        utils_verify_connection_wait_timeout: 20
+        utils_verify_connection_wait_connect_timeout: 5
