@@ -1,0 +1,10 @@
+---
+galaxy_info:
+  author: Richard Lynch
+  description: >-
+    Wait until a newly created or restarted host is usable: refresh the dynamic inventory until the
+    host has an address, fail if it never gets one, then wait for a connection.
+  license: GPL-3.0-or-later
+  min_ansible_version: "2.19"
+  galaxy_tags: [inventory, connection, utilities]
+dependencies: []

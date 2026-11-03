@@ -32,6 +32,7 @@ roles/application_docker/defaults/main.yml
 roles/application_docker/handlers/main.yml
 roles/application_docker/meta/argument_specs.py
 roles/application_docker/meta/argument_specs.yml
+roles/application_docker/meta/main.yml
 roles/application_docker/molecule/default/cleanup.yml
 roles/application_docker/molecule/default/converge.yml
 roles/application_docker/molecule/default/molecule.yml
@@ -46,6 +47,7 @@ roles/config_networkd/files/default.network.j2
 roles/config_networkd/handlers/main.yml
 roles/config_networkd/meta/argument_specs.py
 roles/config_networkd/meta/argument_specs.yml
+roles/config_networkd/meta/main.yml
 roles/config_networkd/molecule/default/cleanup.yml
 roles/config_networkd/molecule/default/converge.yml
 roles/config_networkd/molecule/default/molecule.yml
@@ -59,6 +61,7 @@ roles/deployment_config/defaults/main.yml
 roles/deployment_config/handlers/main.yml
 roles/deployment_config/meta/argument_specs.py
 roles/deployment_config/meta/argument_specs.yml
+roles/deployment_config/meta/main.yml
 roles/deployment_config/molecule/default/cleanup.yml
 roles/deployment_config/molecule/default/converge.yml
 roles/deployment_config/molecule/default/fixture/app.conf
@@ -73,6 +76,7 @@ roles/host_baseline/README.md
 roles/host_baseline/defaults/main.yml
 roles/host_baseline/meta/argument_specs.py
 roles/host_baseline/meta/argument_specs.yml
+roles/host_baseline/meta/main.yml
 roles/host_baseline/molecule/default/converge.yml
 roles/host_baseline/molecule/default/molecule.yml
 roles/host_baseline/molecule/default/verify.yml
@@ -84,6 +88,7 @@ roles/packages_apt/defaults/main.yml
 roles/packages_apt/defaults/update.yml
 roles/packages_apt/meta/argument_specs.py
 roles/packages_apt/meta/argument_specs.yml
+roles/packages_apt/meta/main.yml
 roles/packages_apt/molecule/default/converge.yml
 roles/packages_apt/molecule/default/molecule.yml
 roles/packages_apt/molecule/default/verify.yml
@@ -95,6 +100,7 @@ roles/packages_pip/defaults/main.yml
 roles/packages_pip/defaults/setup.yml
 roles/packages_pip/meta/argument_specs.py
 roles/packages_pip/meta/argument_specs.yml
+roles/packages_pip/meta/main.yml
 roles/packages_pip/molecule/default/cleanup.yml
 roles/packages_pip/molecule/default/converge.yml
 roles/packages_pip/molecule/default/molecule.yml
@@ -107,6 +113,7 @@ roles/secrets_manager/defaults/SKIP
 roles/secrets_manager/defaults/main.yml
 roles/secrets_manager/meta/argument_specs.py
 roles/secrets_manager/meta/argument_specs.yml
+roles/secrets_manager/meta/main.yml
 roles/secrets_manager/molecule/default/converge.yml
 roles/secrets_manager/molecule/default/molecule.yml
 roles/secrets_manager/molecule/default/verify.yml
@@ -116,6 +123,7 @@ roles/setup_pip/defaults/main.yml
 roles/setup_pip/defaults/pep668.yml
 roles/setup_pip/meta/argument_specs.py
 roles/setup_pip/meta/argument_specs.yml
+roles/setup_pip/meta/main.yml
 roles/setup_pip/molecule/default/converge.yml
 roles/setup_pip/molecule/default/molecule.yml
 roles/setup_pip/molecule/default/prepare.yml
@@ -128,6 +136,7 @@ roles/utils_file_download/README.md
 roles/utils_file_download/defaults/main.yml
 roles/utils_file_download/meta/argument_specs.py
 roles/utils_file_download/meta/argument_specs.yml
+roles/utils_file_download/meta/main.yml
 roles/utils_file_download/molecule/default/cleanup.yml
 roles/utils_file_download/molecule/default/converge.yml
 roles/utils_file_download/molecule/default/fixture/payload.txt
@@ -140,6 +149,7 @@ roles/utils_verify_connection/defaults/SKIP
 roles/utils_verify_connection/defaults/main.yml
 roles/utils_verify_connection/meta/argument_specs.py
 roles/utils_verify_connection/meta/argument_specs.yml
+roles/utils_verify_connection/meta/main.yml
 roles/utils_verify_connection/molecule/default/converge.yml
 roles/utils_verify_connection/molecule/default/molecule.yml
 roles/utils_verify_connection/molecule/default/verify.yml

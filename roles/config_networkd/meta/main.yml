@@ -1,0 +1,11 @@
+---
+galaxy_info:
+  author: Richard Lynch
+  description: >-
+    Render a systemd-networkd .network file for one interface (DHCP, or static addresses with
+    optional gateway and DNS) and, where present, stop and mask ifupdown's networking.service so
+    networkd is the only DHCP client on it.
+  license: GPL-3.0-or-later
+  min_ansible_version: "2.19"
+  galaxy_tags: [networking, systemd, networkd]
+dependencies: []

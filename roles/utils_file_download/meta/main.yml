@@ -1,0 +1,10 @@
+---
+galaxy_info:
+  author: Richard Lynch
+  description: >-
+    Download a file from a URL to a path on the host unless a copy younger than a set number of
+    days is already there, optionally verifying a checksum.
+  license: GPL-3.0-or-later
+  min_ansible_version: "2.19"
+  galaxy_tags: [download, files, utilities]
+dependencies: []

@@ -1,0 +1,10 @@
+---
+galaxy_info:
+  author: Richard Lynch
+  description: >-
+    Prepare a Debian-family host for pip installs into the system Python: apt upgrade, remove the
+    PEP 668 EXTERNALLY-MANAGED marker of each system Python, and install pip from apt.
+  license: GPL-3.0-or-later
+  min_ansible_version: "2.19"
+  galaxy_tags: [pip, python, pep668]
+dependencies: []
