@@ -1,0 +1,11 @@
+---
+galaxy_info:
+  author: Richard Lynch
+  description: >-
+    Report, and when asked apply, a Debian-family host's baseline OS posture: an sshd authentication
+    drop-in verified against the effective config and a fresh connection, unattended-upgrades
+    installed, and an explicit automatic-reboot policy. Dry run by default.
+  license: GPL-3.0-or-later
+  min_ansible_version: "2.19"
+  galaxy_tags: [ssh, security, baseline, updates]
+dependencies: []

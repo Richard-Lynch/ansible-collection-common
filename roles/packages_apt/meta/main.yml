@@ -1,0 +1,10 @@
+---
+galaxy_info:
+  author: Richard Lynch
+  description: >-
+    Install or remove a declared list of apt packages, after an apt update and upgrade unless told
+    to skip it. An update entrypoint runs only the update and upgrade.
+  license: GPL-3.0-or-later
+  min_ansible_version: "2.19"
+  galaxy_tags: [apt, packages, system]
+dependencies: []

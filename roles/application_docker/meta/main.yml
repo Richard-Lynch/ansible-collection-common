@@ -1,0 +1,16 @@
+---
+galaxy_info:
+  author: Richard Lynch
+  description: >-
+    Install Docker through geerlingguy.docker with per-distro version pins, write a daemon.json with
+    bounded json-file container logs merged with caller settings, and add a systemd drop-in that
+    keeps dockerd on its local socket unless TCP is explicitly enabled.
+  license: GPL-3.0-or-later
+  min_ansible_version: "2.19"
+  platforms:
+    - name: Debian
+      versions: [bookworm]
+    - name: Ubuntu
+      versions: [noble]
+  galaxy_tags: [docker, containers, systemd]
+dependencies: []

@@ -1,0 +1,11 @@
+---
+galaxy_info:
+  author: Richard Lynch
+  description: >-
+    Get, ensure, generate, roll, remove or list credentials in a 1Password vault through the op CLI,
+    restricted to an allowed set of vaults, with values kept out of the log and a verified backup
+    taken before a destructive action.
+  license: GPL-3.0-or-later
+  min_ansible_version: "2.19"
+  galaxy_tags: [1password, secrets, credentials]
+dependencies: []
