@@ -9,6 +9,13 @@ All notable changes to this collection are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the collection
 uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+
+- CI, disclosure and release callers use ansible-devkit v0.2.0; `.github/actionlint.yaml`
+  added, so the repository passes `devkit conform`.
+
 ## [1.0.0] — 2026-11-02
 
 ### Added
