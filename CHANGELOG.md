@@ -9,7 +9,9 @@ All notable changes to this collection are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the collection
 uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.0.1] — 2026-11-03
+
+The first release published to Galaxy; 1.0.0 exists only as the git tag `v1.0.0`.
 
 ### Changed
 
