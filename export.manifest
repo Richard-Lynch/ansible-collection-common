@@ -7,10 +7,12 @@
 .github/workflows/disclose.yml
 .github/workflows/release.yml
 .gitignore
+.python-version
 CHANGELOG.md
 LICENSE
 README.md
 configured_roles.txt
+deps-baseline.json
 devkit.toml
 export.manifest
 galaxy.yml
@@ -27,6 +29,7 @@ plugins/module_utils/errors.py
 plugins/module_utils/redact.py
 plugins/module_utils/transport.py
 plugins/plugin_utils/reachable_host.py
+renovate.json
 roles/application_docker/README.md
 roles/application_docker/defaults/SKIP
 roles/application_docker/defaults/main.yml
