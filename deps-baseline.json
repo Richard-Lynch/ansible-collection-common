@@ -1,0 +1,9 @@
+{
+  "_comment": "devkit check dependencies baseline: violations that existed when DEP-02..05 arrived. key = RULE|path|name, value = occurrences, and a reason for each. New ones FAIL; an entry that no longer occurs FAILS until removed. Regenerate with `devkit check dependencies --update-baseline` after a fix, never to admit a new one.",
+  "entries": {
+    "DEP-02|roles/packages_pip/tasks/main.yml|{{ package.name }}": 1
+  },
+  "reasons": {
+    "DEP-02|roles/packages_pip/tasks/main.yml|{{ package.name }}": "generic role: the caller declares each package and its pin in the role's packages list, so the name is the caller's input, validated by the argument spec"
+  }
+}
