@@ -51,6 +51,11 @@
   loop_control:
     loop_var: deployment_config__static_file
 
+# This role renders whatever directory its CALLER names, so the source below is dynamic by design
+# and no static check can resolve it. A credential template is judged at the caller: `apply:
+# {no_log: true}` on the include, or the template moved to the caller's templates/ and rendered
+# there under no_log (devkit's diff-leak check sweeps the caller's directory for exactly that).
+# guard-check: ignore DIFFLEAK-01 — the source is the caller's directory by design; judged at the caller's include
 - name: Copy template files
   notify: Update changed status
   register: deployment_config__templates
