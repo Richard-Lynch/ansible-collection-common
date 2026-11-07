@@ -9,6 +9,19 @@ All notable changes to this collection are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the collection
 uses [Semantic Versioning](https://semver.org/).
 
+## [1.1.1] — 2026-11-07
+
+### Fixed
+
+- **`require_common` and `COMMON_API_VERSION` are a module_utils FILE (`version.py`), not code in the
+  package's `__init__.py`.** AnsiballZ ships a module with the module_utils files its imports name
+  and replaces every package `__init__.py` with an empty stub, so a module that did
+  `from ...module_utils import require_common` passed every in-process unit test and failed on the
+  target with `module ... has no attribute 'require_common'` (first live run of
+  `richard_lynch.monitoring.alertmanager_silence` 1.1.0). `__init__.py` re-exports the names for
+  in-process callers; a module imports `module_utils.version` by name. A unit test keeps
+  `__init__.py` free of definitions.
+
 ## [1.1.0] — 2026-11-07
 
 ### Added
