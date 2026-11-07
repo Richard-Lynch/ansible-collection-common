@@ -24,6 +24,7 @@ plugins/lookup/onepassword_cached.py
 plugins/lookup/reachable_host.py
 plugins/module_utils/__init__.py
 plugins/module_utils/args.py
+plugins/module_utils/confined_io.py
 plugins/module_utils/desired_state.py
 plugins/module_utils/errors.py
 plugins/module_utils/redact.py
@@ -163,6 +164,7 @@ tests/unit/conftest.py
 tests/unit/plugins/filter/test_onepassword_refs.py
 tests/unit/plugins/lookup/test_onepassword_cached.py
 tests/unit/plugins/module_utils/test_args_and_version.py
+tests/unit/plugins/module_utils/test_confined_io.py
 tests/unit/plugins/module_utils/test_desired_state.py
 tests/unit/plugins/module_utils/test_redact.py
 tests/unit/plugins/module_utils/test_security_review.py

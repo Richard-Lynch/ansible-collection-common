@@ -9,6 +9,28 @@ All notable changes to this collection are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the collection
 uses [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] — 2026-11-07
+
+### Added
+
+- **`module_utils/confined_io.py`** — confined file I/O for a root-run program that touches a tree
+  another uid can write: an anchored, dir_fd-relative walk with `O_NOFOLLOW` at every component, a
+  temp-file-and-rename writer, `ensure_dir`, `unlink` and `run_as`. Moved here from the IaaC hub's
+  `scripts/lib/`, whose test suite (attack cases per primitive and the mutation proofs that show each
+  protection is load-bearing) moved with it. A role that ships a copy to a host keeps a copy that
+  must equal THIS file by code.
+
+### Accepted
+
+- The module library's design rules, ADR-C1..C11 in the IaaC hub's `design/COMMON_LIBRARY.md`, are
+  accepted as written on their recommended answers (hub DECISIONS ADR-48..58): HTTP from the target
+  through `fetch_url`; Python floor 3.9 on targets with `requires_ansible >= 2.19`; cross-collection
+  import with `COMMON_API_VERSION`; doc fragment + `http_argument_spec`; `ansible-test units` layout
+  with a fake server per system; the `changed/diff/resource/applied` return contract decided by
+  `normalize()`; redaction by key and by value; `--check` semantics with no `*_apply` inside a
+  module; per-system collections (`richard_lynch.monitoring` ships the first module built on it,
+  `alertmanager_silence`); GPL-3.0-or-later; a resource-model document per resource.
+
 ## [1.0.3] — 2026-11-07
 
 ### Changed
