@@ -10,6 +10,7 @@
 .python-version
 CHANGELOG.md
 LICENSE
+Makefile
 README.md
 configured_roles.txt
 deps-baseline.json
@@ -29,8 +30,10 @@ plugins/module_utils/desired_state.py
 plugins/module_utils/errors.py
 plugins/module_utils/redact.py
 plugins/module_utils/transport.py
+plugins/module_utils/version.py
 plugins/plugin_utils/reachable_host.py
 renovate.json
+requirements.yml
 roles/application_docker/README.md
 roles/application_docker/defaults/SKIP
 roles/application_docker/defaults/main.yml
