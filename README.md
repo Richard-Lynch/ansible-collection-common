@@ -117,3 +117,9 @@ scenarios live under `roles/<role>/molecule/default` and run with
 ## Licence
 
 GPL-3.0-or-later. See [LICENSE](LICENSE).
+
+## module_utils
+
+The module library (`transport`, `args`, `errors`, `redact`, `desired_state`; see the
+`http_connection` doc fragment) and `confined_io`, confined file I/O for a root-run program that
+touches a tree another uid can write. Every public symbol is covered by `tests/unit`.
