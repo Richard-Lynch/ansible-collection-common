@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Offline scenario — no live 1Password in CI. Asserts input validation + vault-scope enforcement
-# (the role's key safety guarantees), which need no op access.
+# (the role's key safety guarantees), which need no op access, and the check-mode behaviour
+# against a stub `op`.
 ---
 dependency:
   name: galaxy
@@ -22,8 +23,9 @@ provisioner:
     host_vars:
       localhost:
         ansible_connection: local
-        # The two REQUIRED inventory values (no role default). Placeholder vault name: the
-        # scenario never reaches op, every case it runs is refused before the first op call.
+        # The two REQUIRED inventory values (no role default). Placeholder vault name: the guard
+        # cases are refused before any op call, and the check-mode cases run against a stub `op`
+        # on PATH, so no case reaches 1Password.
         secrets_manager_vault: "Example-Vault"
         secrets_manager_allowed_vaults: ["Example-Vault"]
   playbooks:
