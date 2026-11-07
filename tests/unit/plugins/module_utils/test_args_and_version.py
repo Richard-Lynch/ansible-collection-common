@@ -110,3 +110,29 @@ def test_python_39_floor_and_licence_header(path):
     assert not any(
         type(n).__name__ == "Match" for n in ast.walk(tree)
     ), "match statement needs 3.10"
+
+
+def test_version_is_a_file_not_the_package():
+    """AnsiballZ replaces module_utils/__init__.py with an empty stub on the target, so anything a
+    module needs must be a FILE under module_utils. __init__.py may re-export; it may not define."""
+    import ast
+    import pathlib
+
+    pkg = pathlib.Path(__file__).resolve().parents[4] / "plugins" / "module_utils"
+    tree = ast.parse((pkg / "__init__.py").read_text(encoding="utf-8"))
+    defined = [
+        n.name
+        for n in tree.body
+        if isinstance(n, (ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef))
+    ] + [
+        t.id
+        for n in tree.body
+        if isinstance(n, ast.Assign)
+        for t in n.targets
+        if isinstance(t, ast.Name)
+    ]
+    assert defined == [], f"module_utils/__init__.py defines {defined}; move them to a file"
+    from ansible_collections.richard_lynch.common.plugins.module_utils import version
+
+    assert version.COMMON_API_VERSION == (1, 0)
+    version.require_common(">=1.0,<2")

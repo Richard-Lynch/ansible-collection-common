@@ -143,9 +143,7 @@ class LookupModule(LookupBase):
                 display.vvv(f"onepassword_cached: cache hit for {term}")
                 results.append(CACHE[cache_key])
             else:
-                display.vvv(
-                    f"onepassword_cached: cache miss for {term}, fetching from 1Password"
-                )
+                display.vvv(f"onepassword_cached: cache miss for {term}, fetching from 1Password")
                 # Build kwargs for the upstream lookup
                 upstream_kwargs = {"field": field}
                 if vault:
@@ -177,9 +175,7 @@ class LookupModule(LookupBase):
                         raise AnsibleError(f"No value returned for {term}")
                 except Exception as e:
                     if missing != "empty":
-                        raise AnsibleError(
-                            f"Failed to fetch '{term}' from 1Password: {e}"
-                        )
+                        raise AnsibleError(f"Failed to fetch '{term}' from 1Password: {e}")
                     # Cache the miss as well as the hit. Without this an absent optional item
                     # costs a 1Password call on EVERY run, which is the exact cost this plugin
                     # exists to avoid.
