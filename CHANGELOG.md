@@ -9,6 +9,26 @@ All notable changes to this collection are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the collection
 uses [Semantic Versioning](https://semver.org/).
 
+## [1.0.3] — 2026-11-07
+
+### Changed
+
+- The CI, release and disclose callers use ansible-devkit `v0.4.0`; the disclose caller passes
+  no secrets and the repository carries a `.disclose-allow`. Renovate config (the shared devkit
+  preset, pinned at `v0.4.1`), `.python-version` and the dependency-check baseline
+  `deps-baseline.json` are added; `devkit.toml` gains the `[dependencies]` section that names it.
+
+### Fixed
+
+- `secrets_manager` runs its read-only actions under `--check`. The item lookup and the vault
+  listing are commands, which a check run skips, so the next task parses empty output and the
+  role fails at "Record whether the item exists". Both reads are `check_mode: false` (they
+  change nothing), so `get`, `list` and `ensure` of an existing item return real values in a
+  check run. An action that would write (create an absent item, roll or remove an existing one)
+  reports the write and ends the role, instead of returning a value that was never stored or
+  failing on a backup that was never written. The molecule scenario runs the reads in check
+  mode against a stub `op`, and `roll` under a real `--check`.
+
 ## [1.0.2] — 2026-11-03
 
 ### Added

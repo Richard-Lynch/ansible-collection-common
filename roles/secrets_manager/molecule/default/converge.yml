@@ -91,3 +91,118 @@
               - "'title required' in (ansible_failed_result.msg | default(''))"
             fail_msg: "Failed, but not on the title guard: {{ ansible_failed_result.msg | default(ansible_failed_result) }}"
             quiet: true
+
+# Read-only actions must work under --check. A check run skips every command task, so a read that
+# is not marked check_mode: false leaves its register with no rc, and the next task that reads it
+# fails. `check_mode: true` on the block is what --check sets on each task; it does NOT set
+# `ansible_check_mode`, which the role's write gate reads, so that gate is proved by the real
+# `--check` run at the end. `op` is a stub on PATH that answers the two reads and records any
+# other call, so nothing reaches 1Password.
+- name: Converge — read-only actions run under --check
+  hosts: localhost
+  gather_facts: false
+  vars:
+    _stub_dir: "{{ lookup('env', 'MOLECULE_EPHEMERAL_DIRECTORY') | default(playbook_dir, true) }}/op-stub"
+  tasks:
+    - name: Create the stub directory
+      ansible.builtin.file: { path: "{{ _stub_dir }}", state: directory, mode: "0700" }
+      check_mode: false
+    - name: Install the op stub (answers `item get` and `item list`; logs anything else)
+      ansible.builtin.copy:
+        dest: "{{ _stub_dir }}/op"
+        mode: "0755"
+        content: |
+          #!/bin/sh
+          case "$1 $2" in
+            "item get") echo '{"id":"x","label":"password","value":"STUB-VALUE"}' ;;
+            "item list") echo '[{"title":"b-item"},{"title":"a-item"}]' ;;
+            *) echo "$*" >> "{{ _stub_dir }}/unexpected"; exit 99 ;;
+          esac
+      check_mode: false
+    - name: Clear the record of unexpected calls
+      ansible.builtin.file: { path: "{{ _stub_dir }}/unexpected", state: absent }
+      check_mode: false
+      changed_when: false
+
+    - name: get, ensure (existing item) and list, in check mode
+      check_mode: true
+      environment:
+        PATH: "{{ _stub_dir }}:{{ lookup('env', 'PATH') }}"
+      block:
+        - name: get
+          ansible.builtin.include_role: { name: secrets_manager }
+          vars: { secrets_manager_action: get, secrets_manager_title: "service/test/x", secrets_manager_result_var: _got }
+        - name: ensure on an existing item returns it and writes nothing
+          ansible.builtin.include_role: { name: secrets_manager }
+          vars: { secrets_manager_action: ensure, secrets_manager_title: "service/test/x", secrets_manager_result_var: _ensured }
+        - name: list
+          ansible.builtin.include_role: { name: secrets_manager }
+          vars: { secrets_manager_action: list }
+
+    - name: Read the record of unexpected op calls
+      ansible.builtin.stat: { path: "{{ _stub_dir }}/unexpected" }
+      register: _unexpected
+      check_mode: false
+
+    # Stub values. Against a real vault this assert needs no_log: true and must compare
+    # lengths or equality only, never print the values.
+    - name: The reads returned the stub's values, and nothing else called op
+      ansible.builtin.assert:
+        that:
+          - _got == 'STUB-VALUE'
+          - _ensured == 'STUB-VALUE'
+          - secrets_manager_list_out == ['a-item', 'b-item']
+          - not _unexpected.stat.exists
+        fail_msg: >-
+          check-mode reads wrong: get={{ _got | default('unset') }}
+          ensure={{ _ensured | default('unset') }} list={{ secrets_manager_list_out | default('unset') }}
+          unexpected op call={{ _unexpected.stat.exists }}
+        quiet: true
+
+    # A real `--check` (the only thing that sets ansible_check_mode): roll of an existing item
+    # must report the write it would make and stop before the backup and the `op item edit`.
+    - name: Write a playbook that rolls the stub item
+      ansible.builtin.copy:
+        dest: "{{ _stub_dir }}/roll.yml"
+        mode: "0600"
+        content: |
+          - hosts: localhost
+            gather_facts: false
+            vars:
+              secrets_manager_vault: Example-Vault
+              secrets_manager_allowed_vaults: [Example-Vault]
+              secrets_manager_backup_dir: "{{ _stub_dir }}/backup"
+            tasks:
+              - ansible.builtin.include_role: { name: secrets_manager }
+                vars: { secrets_manager_action: roll, secrets_manager_title: "service/test/x" }
+      check_mode: false
+    - name: Run it under --check
+      ansible.builtin.command:
+        argv:
+          - "{{ ansible_playbook_python | dirname }}/ansible-playbook"
+          - --check
+          - --connection=local
+          - --inventory=localhost,
+          - "{{ _stub_dir }}/roll.yml"
+      environment:
+        PATH: "{{ _stub_dir }}:{{ lookup('env', 'PATH') }}"
+      register: _roll_check
+      check_mode: false
+      changed_when: false
+      failed_when: false
+    - name: Read the record of unexpected op calls, and the backup dir
+      ansible.builtin.stat: { path: "{{ item }}" }
+      loop: ["{{ _stub_dir }}/unexpected", "{{ _stub_dir }}/backup"]
+      register: _after_roll
+      check_mode: false
+    - name: roll under --check ran, said what it would write, and wrote nothing
+      ansible.builtin.assert:
+        that:
+          - _roll_check.rc == 0
+          - _roll_check.stdout is search('check mode. roll of .service/test/x. .exists=True. would write')
+          - not _after_roll.results[0].stat.exists
+          - not _after_roll.results[1].stat.exists
+        fail_msg: >-
+          roll under --check: rc={{ _roll_check.rc }} unexpected op call={{ _after_roll.results[0].stat.exists }}
+          backup dir={{ _after_roll.results[1].stat.exists }}; tail: {{ _roll_check.stdout_lines[-15:] | default([]) }}
+        quiet: true

@@ -38,6 +38,11 @@ secrets_manager_allowed_vaults: ["Example-Vault"] # what the service account may
   `secrets_manager_vault` to a personal vault is stopped before any `op` call.
 - Secrets are passed to `op` via **environment**, never argv, and every
   secret-bearing task is `no_log`.
+- **`--check` runs the reads.** The item lookup and the vault listing are
+  `check_mode: false`, so `get`, `list` and `ensure` of an existing item return
+  real values under `--check`. An action that would write (create an absent
+  item, roll or remove an existing one) reports what it would do and stops,
+  changing nothing.
 
 ## Actions
 
@@ -107,5 +112,6 @@ The full interface is in `meta/argument_specs.py` (generated into
 ## Testing
 
 `molecule test` runs offline — it asserts the vault-scope + action-validation
-guards (no live 1P). Live get/generate/roll/remove are exercised against a real
+guards (no live 1P), runs `get`/`ensure`/`list` in check mode against a stub
+`op`, and runs `roll` under a real `--check` to prove it stops before writing. Live get/generate/roll/remove are exercised against a real
 vault during use.

@@ -66,6 +66,8 @@
       become: false
       register: _sm_list
       changed_when: false
+      # A read: it must run under --check too, or the parse below has no stdout to read.
+      check_mode: false
 
     - name: Return the item titles
       ansible.builtin.set_fact:
@@ -88,6 +90,9 @@
   register: _current
   changed_when: false
   failed_when: false
+  # A read: under --check a skipped command leaves no output, and "Record whether the item exists"
+  # then parses nothing. It changes nothing, so it runs in check mode as well.
+  check_mode: false
   when: secrets_manager_action != 'list'
   no_log: true
 
@@ -97,6 +102,26 @@
     _sm_current_value: "{{ (_current.stdout | from_json).value | default('') if _current.rc == 0 else '' }}"
   when: secrets_manager_action != 'list'
   no_log: true
+
+# A check run reads, then stops where a real run would WRITE: creating an absent item
+# (generate/ensure) or changing an existing one (roll/remove). Past this point the backup and
+# write tasks would be skipped piecemeal, so a check run would report a value that was never
+# stored, or fail reading back a backup that was never written. Every other combination (get, list,
+# ensure of an existing item, and the refusals below) runs on and predicts the real run.
+- name: "Check mode — report the write this action would make, and stop"
+  ansible.builtin.debug:
+    msg: >-
+      check mode: {{ secrets_manager_action }} of '{{ secrets_manager_title }}'
+      (exists={{ _sm_exists }}) would write to 1Password; nothing was written.
+  when: &sm_check_write
+    - ansible_check_mode
+    - >-
+      (secrets_manager_action in ['generate', 'ensure'] and not _sm_exists)
+      or (secrets_manager_action in ['roll', 'remove'] and _sm_exists)
+
+- name: "Check mode — end the role before any write task"
+  ansible.builtin.meta: end_role
+  when: *sm_check_write
 
 # ---------------------------------------------------------------------------
 # GET — read only
